@@ -172,6 +172,114 @@ const AdminDashboard = () => {
   };
 
 
+  // ==========================================
+  // 3. SHOW SCHEDULER STATE & LOGIC
+  // ==========================================
+  const [moviesList, setMoviesList] = useState([]);
+  const [theatersList, setTheatersList] = useState([]);
+  
+  const [selectedMovie, setSelectedMovie] = useState('');
+  const [selectedTheater, setSelectedTheater] = useState('');
+  const [selectedScreen, setSelectedScreen] = useState('');
+  const [showStartTime, setShowStartTime] = useState('');
+  const [prices, setPrices] = useState({ Platinum: 250, Gold: 350, Diamond: 500 });
+
+  // Fetch Movies and Theaters when the component mounts
+  useEffect(() => {
+    const fetchDropdownData = async () => {
+      try {
+        const [moviesRes, theatersRes] = await Promise.all([
+          api.get('/movies'),
+          api.get('/theaters')
+        ]);
+        setMoviesList(moviesRes.data);
+        setTheatersList(theatersRes.data);
+      } catch (error) {
+        toast.error('Failed to load movies or theaters');
+      }
+    };
+    fetchDropdownData();
+  }, []);
+
+  // Derived state: Get the screens for the currently selected theater
+  const availableScreens = selectedTheater 
+    ? theatersList.find(t => t._id === selectedTheater)?.screens || []
+    : [];
+
+  // Find the full object of the currently selected screen
+  const activeScreenObj = availableScreens.find(s => s.screenNumber === Number(selectedScreen));
+
+  // Scan its layout to see which seat tiers actually exist
+  const existingTiers = new Set();
+  if (activeScreenObj?.seatLayout) {
+    activeScreenObj.seatLayout.flat().forEach(val => {
+      if (val === 1) existingTiers.add('Platinum');
+      if (val === 2) existingTiers.add('Gold');
+      if (val === 3) existingTiers.add('Diamond');
+    });
+  }
+
+  // Handle individual price changes
+  const handlePriceChange = (tier, value) => {
+    setPrices(prev => ({ ...prev, [tier]: Number(value) }));
+  };
+
+
+  // Helper to prevent selecting past dates (adjusts for local timezone)
+  const getMinDatetime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
+
+  const handleCreateShow = async (e) => {
+    e.preventDefault();
+    if (!selectedMovie || !selectedTheater || !selectedScreen || !showStartTime) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    const toastId = toast.loading('Scheduling show...');
+    try {
+      await api.post('/shows', {
+        movieId: selectedMovie,
+        theaterId: selectedTheater,
+        screenNumber: Number(selectedScreen),
+        startTime: new Date(showStartTime).toISOString(),
+        pricing: prices
+      });
+      
+      toast.update(toastId, { render: 'Show scheduled successfully!', type: 'success', isLoading: false, autoClose: 3000 });
+      
+      // Reset form
+      setSelectedMovie('');
+      setSelectedTheater('');
+      setSelectedScreen('');
+      setShowStartTime('');
+      setPrices({Platinum: 250, Gold: 350, Diamond: 500});
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || 'Failed to schedule show';
+      
+      if (error.response?.status === 400 && error.response?.data?.conflictDetails) {
+        // Update the loading toast into a conflict error
+        toast.update(toastId, { 
+          render: `Conflict! Another show runs from ${new Date(error.response.data.conflictDetails.existingStart).toLocaleTimeString()} to ${new Date(error.response.data.conflictDetails.existingEnd).toLocaleTimeString()}`, 
+          type: 'error', 
+          isLoading: false, 
+          autoClose: 5000 
+        });
+      } else {
+        // Update the loading toast into a standard error
+        toast.update(toastId, { 
+          render: errorMsg, 
+          type: 'error', 
+          isLoading: false, 
+          autoClose: 3000 
+        });
+      }
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto py-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Admin Dashboard</h1>
@@ -321,10 +429,131 @@ const AdminDashboard = () => {
         )}
 
 
+        {/* ======================= SHOWS TAB ======================= */}
         {activeTab === 'shows' && (
           <div>
-            <h2 className="text-xl font-bold mb-4">Schedule Shows</h2>
-            <p className="text-gray-500">Show scheduling form goes here.</p>
+            <h2 className="text-xl font-bold mb-6">Schedule a Show</h2>
+            
+            <form onSubmit={handleCreateShow} className="space-y-6 max-w-2xl bg-gray-50 p-6 rounded-lg border border-gray-200">
+              
+              {/* Select Movie */}
+              <div className="flex flex-col">
+                <label className="font-semibold text-gray-700 mb-2">Select Movie</label>
+                <select 
+                  value={selectedMovie} 
+                  onChange={(e) => setSelectedMovie(e.target.value)} 
+                  required
+                  className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Choose a Movie --</option>
+                  {moviesList.map(movie => (
+                    <option key={movie._id} value={movie._id}>{movie.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Select Theater */}
+              <div className="flex flex-col">
+                <label className="font-semibold text-gray-700 mb-2">Select Theater</label>
+                <select 
+                  value={selectedTheater} 
+                  onChange={(e) => {
+                    setSelectedTheater(e.target.value);
+                    setSelectedScreen(''); // Reset screen when theater changes
+                  }} 
+                  required
+                  className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Choose a Theater --</option>
+                  {theatersList.map(theater => (
+                    <option key={theater._id} value={theater._id}>{theater.name} ({theater.location.city})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Select Screen (Dynamically populates based on Theater) */}
+              <div className="flex flex-col">
+                <label className="font-semibold text-gray-700 mb-2">Select Screen</label>
+                <select 
+                  value={selectedScreen} 
+                  onChange={(e) => setSelectedScreen(e.target.value)} 
+                  required
+                  disabled={!selectedTheater}
+                  className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <option value="">-- Choose a Screen --</option>
+                  {availableScreens.map(screen => (
+                    <option key={screen._id || screen.screenNumber} value={screen.screenNumber}>
+                      Screen {screen.screenNumber} ({screen.screenType})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date/Time and Price */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="font-semibold text-gray-700 mb-2">Start Time</label>
+                  <input 
+                    type="datetime-local" 
+                    value={showStartTime} 
+                    onChange={(e) => setShowStartTime(e.target.value)} 
+                    required
+                    min={getMinDatetime()} 
+                    className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {/* Dynamic Tier Pricing */}
+              {selectedScreen && existingTiers.size > 0 && (
+                <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm mt-4 col-span-1 md:col-span-2">
+                  <h3 className="font-semibold text-gray-700 mb-3 border-b pb-2">Set Ticket Prices (₹)</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    
+                    {existingTiers.has('Platinum') && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-bold text-blue-600 mb-1">Platinum Seats</label>
+                        <input 
+                          type="number" min="50" required
+                          value={prices.Platinum} 
+                          onChange={(e) => handlePriceChange('Platinum', e.target.value)} 
+                          className="px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {existingTiers.has('Gold') && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-bold text-yellow-600 mb-1">Gold Seats</label>
+                        <input 
+                          type="number" min="50" required
+                          value={prices.Gold} 
+                          onChange={(e) => handlePriceChange('Gold', e.target.value)} 
+                          className="px-3 py-2 border border-yellow-200 rounded focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                    )}
+
+                    {existingTiers.has('Diamond') && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-bold text-purple-600 mb-1">Diamond Seats</label>
+                        <input 
+                          type="number" min="50" required
+                          value={prices.Diamond} 
+                          onChange={(e) => handlePriceChange('Diamond', e.target.value)} 
+                          className="px-3 py-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              )}
+              </div>
+
+              <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition shadow-sm">
+                Publish Show
+              </button>
+            </form>
           </div>
         )}
       </div>

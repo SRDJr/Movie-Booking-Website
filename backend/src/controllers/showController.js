@@ -6,7 +6,7 @@ import Movie from '../models/Movie.js';
 // @route   POST /api/shows
 // @access  Private/Admin
 export const createShow = async (req, res) => {
-  const { movieId, theaterId, screenNumber, startTime, price } = req.body;
+  const { movieId, theaterId, screenNumber, startTime, pricing } = req.body;
 
   try {
     //Fetch Movie to get duration
@@ -59,12 +59,16 @@ export const createShow = async (req, res) => {
     
     screen.seatLayout.forEach((rowArr, rowIndex) => {
       rowArr.forEach((val, colIndex) => {
-        if (val === 1) { // 1 = Seat, 0 = Aisle
+        if (val > 0) { // 0 = Aisle
+          let seatTier = 'Platinum';
+          if(val == 2)  seatTier = 'Gold';
+          if(val == 3)  seatTier = 'Diamond';
           generatedSeats.push({
             row: rowIndex,
             col: colIndex,
             type: 'Platinum', // We can expand logic here for VIP if val == 2
-            status: 'available'
+            status: 'available',
+            price: pricing[seatTier]
           });
         }
       });
@@ -77,7 +81,7 @@ export const createShow = async (req, res) => {
       screenNumber,
       startTime: newStartTime,
       endTime: newEndTime,
-      price,
+      pricing,
       seats: generatedSeats
     });
 

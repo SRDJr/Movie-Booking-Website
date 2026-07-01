@@ -7,7 +7,11 @@ const showSchema = new mongoose.Schema(
     screenNumber: { type: Number, required: true },
     startTime: { type: Date, required: true }, // Format: YYYY-MM-DDTHH:MM:SS
     endTime: { type: Date, required: true },
-    price: { type: Number, required: true },
+    pricing: {
+      Platinum: { type: Number },
+      Gold: { type: Number },
+      Diamond: { type: Number }
+    },
     
     // The dynamic seat map for THIS specific show
     seats: [
