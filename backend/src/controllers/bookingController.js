@@ -1,6 +1,7 @@
 import Booking from '../models/Booking.js';
 import Show from '../models/Show.js';
 import mongoose from 'mongoose';
+import { razorpayInstance } from '../config/razorpay.js';
 
 // Internal service function that executes the transaction
 export const executeBookingCore = async ({ showId, selectedSeats, amount, paymentId, user }) => {
@@ -161,6 +162,109 @@ export const verifyBeforePayment = async (req, res) => {
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Cancel booking and process tiered refund
+// @route   PUT /api/bookings/:id/cancel
+// @access  Private
+export const cancelBooking = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    const bookingId = req.params.id;
+    const userId = req.user._id;
+
+    // 1. Fetch Booking and Validate State
+    const booking = await Booking.findById(bookingId).session(session);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    if (booking.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Unauthorized action' });
+    }
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ message: 'Booking is already cancelled' });
+    }
+
+    // 2. Fetch Show and Calculate Time Difference
+    const show = await Show.findById(booking.show).session(session);
+    if (!show) return res.status(404).json({ message: 'Associated show missing' });
+
+    const currentTime = new Date();
+    const showStartTime = new Date(show.startTime);
+    
+    // Calculate difference in hours
+    const timeDiffMs = showStartTime - currentTime;
+    const hoursRemaining = timeDiffMs / (1000 * 60 * 60);
+
+    if (hoursRemaining <= 1) {
+      return res.status(400).json({ message: 'Cancellations are not allowed less than 1 hour before the show' });
+    }
+
+    // 3. Determine Refund Percentage based on Base Price
+    // Note: Assuming `booking.basePrice` is stored in your DB (see suggestions below)
+    let refundPercentage = 0;
+
+    if (hoursRemaining >= 48) {
+      refundPercentage = 0.75;
+    } else if (hoursRemaining >= 12) {
+      refundPercentage = 0.50;
+    } else if (hoursRemaining > 1) {
+      refundPercentage = 0.25;
+    }
+
+    const BASE_PRICE_DIVISOR = 1.0839924;
+    const basePriceInRupees = Math.round(booking.totalAmount / BASE_PRICE_DIVISOR);
+    const refundAmountInRupees = basePriceInRupees * refundPercentage;
+    const refundAmountInPaise = Math.round(refundAmountInRupees * 100);
+
+    // 4. Initiate Razorpay Refund (External API call)
+    let refund;
+    if (refundAmountInPaise > 0) {
+      refund = await razorpayInstance.payments.refund(booking.paymentId, {
+        amount: refundAmountInPaise,
+        notes: {
+          reason: 'Tiered user cancellation',
+          bookingId: booking._id.toString()
+        }
+      });
+    }
+
+    // 5. Update Database safely using a Transaction
+    await session.withTransaction(async () => {
+      // Mark booking as cancelled
+      booking.status = 'cancelled';
+      if (refund) {
+        booking.refundId = refund.id;
+        booking.refundAmount = refundAmountInRupees;
+      }
+      await booking.save({ session });
+
+      // Release the seats in the Show document
+      booking.seats.forEach(bookedSeat => {
+        const seatIndex = show.seats.findIndex(
+          s => s.row === bookedSeat.row && s.col === bookedSeat.col
+        );
+        if (seatIndex > -1) {
+          show.seats[seatIndex].status = 'available';
+          show.seats[seatIndex].lockedBy = null;
+          show.seats[seatIndex].lockExpiresAt = null;
+        }
+      });
+      await show.save({ session });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Booking cancelled successfully. ₹${refundAmountInRupees} will be refunded.`,
+      refundId: refund?.id || null
+    });
+
+  } catch (error) {
+    console.error('Cancellation Error:', error);
+    res.status(500).json({ message: 'Server error during cancellation processing.' });
+  } finally {
+    session.endSession();
   }
 };
 

@@ -2,6 +2,7 @@ import { razorpayInstance } from '../config/razorpay.js';
 import Show from '../models/Show.js';
 import crypto from 'crypto';
 import { executeBookingCore } from './bookingController.js'; 
+import { calculateFinalPrice } from '../utils/finalPriceCalculator.js';
 
 // @desc    Create Razorpay Order
 // @route   POST /api/payments/create-order
@@ -20,14 +21,15 @@ export const createRazorpayOrder = async (req, res) => {
       if (dbSeat) totalAmount += dbSeat.price;
     });
 
+    const finalAmountInPaise = calculateFinalPrice(totalAmount);
     // Razorpay requires a minimum of 1 INR (100 paise)
-    if (totalAmount < 1) {
+    if (finalAmountInPaise < 10) {
       return res.status(400).json({ message: 'Amount must be at least ₹1' });
     }
 
     // 2. Create the order configuration
     const options = {
-      amount: totalAmount * 100, // Convert Rupees to Paise
+      amount: finalAmountInPaise * 100, // Convert Rupees to Paise
       currency: 'INR',
       receipt: `receipt_${req.user._id}_${Date.now()}`, // Unique receipt string
       notes: {
@@ -88,12 +90,13 @@ export const verifyPaymentSignature = async (req, res) => {
     const show = await Show.findById(showId);
     if (!show) return res.status(404).json({ message: 'Associated show records missing' });
 
-    let finalCalculatedAmount = 0;
+    let baseAmount = 0;
     selectedSeats.forEach(reqSeat => {
       const dbSeat = show.seats.find(s => s.row === reqSeat.row && s.col === reqSeat.col);
-      if (dbSeat) finalCalculatedAmount += dbSeat.price;
+      if (dbSeat) baseAmount += dbSeat.price;
     });
 
+    const finalCalculatedAmount = calculateFinalPrice(baseAmount);
     // 3. Directly call the transactional booking system inside the backend!
     const { booking } = await executeBookingCore({
       showId,
