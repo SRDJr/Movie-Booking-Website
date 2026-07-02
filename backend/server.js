@@ -4,7 +4,7 @@ import cors from 'cors';
 import { createServer } from 'http'; // Standard Node HTTP module
 import { Server } from 'socket.io';  // Socket.io library
 import connectDB from './src/config/db.js';
-import { handleRazorpayWebhook } from './controllers/webhookController.js'; 
+import { handleRazorpayWebhook } from './src/controllers/webhookController.js'; 
 
 import authRoutes from './src/routes/authRoutes.js';
 import movieRoutes from './src/routes/movieRoutes.js';
