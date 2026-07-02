@@ -1,4 +1,4 @@
-const calculateFinalPrice = (basePrice) => {
+export const calculateFinalPrice = (basePrice) => {
   // 1. Website Convenience Fee
   const websiteFee = basePrice * 0.05;
   const websiteGST = websiteFee * 0.18;
