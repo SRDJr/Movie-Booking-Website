@@ -4,6 +4,7 @@ import cors from 'cors';
 import { createServer } from 'http'; // Standard Node HTTP module
 import { Server } from 'socket.io';  // Socket.io library
 import connectDB from './src/config/db.js';
+import { handleRazorpayWebhook } from './controllers/webhookController.js'; 
 
 import authRoutes from './src/routes/authRoutes.js';
 import movieRoutes from './src/routes/movieRoutes.js';
@@ -12,7 +13,6 @@ import showRoutes from './src/routes/showRoutes.js';
 import bookingRoutes from './src/routes/bookingRoutes.js';
 import { handleSeatSocket } from './src/sockets/seatSocket.js'; 
 import paymentRoutes from './routes/paymentRoutes.js';
-
 
 dotenv.config();
 connectDB();
@@ -27,6 +27,13 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
+
+// Webhook route: Uses express.raw() to get the unparsed body for signature verification
+app.post(
+  '/api/payments/webhook',
+  express.raw({ type: 'application/json' }),
+  handleRazorpayWebhook
+);
 
 app.use(express.json());
 app.use(cors());
