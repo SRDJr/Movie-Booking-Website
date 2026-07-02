@@ -1,48 +1,41 @@
 import Booking from '../models/Booking.js';
 import Show from '../models/Show.js';
 import mongoose from 'mongoose';
+import { razorpayInstance } from '../config/razorpay.js';
 
-// @desc    Create new booking (Finalize Ticket)
-// @route   POST /api/bookings
-// @access  Private
-export const createBooking = async (req, res) => {
-  const { showId, selectedSeats, amount, paymentId } = req.body;
-  // selectedSeats = [{ row: 0, col: 1 }, { row: 0, col: 2 }]
-
-  if (!paymentId) {
-    return res.status(400).json({ message: 'paymentId is required' });
-  }
+// Internal service function that executes the transaction
+export const createBooking = async ({ showId, selectedSeats, amount, paymentId, user }) => {
+  if (!paymentId) throw new Error('paymentId is required');
 
   const session = await mongoose.startSession();
   try {
     let booking;
     let bookingWasExisting = false;
+
     await session.withTransaction(async () => {
-      // Idempotency: if a booking with same paymentId exists, return it (inside the transaction)
+      // Idempotency check
       const existingBooking = await Booking.findOne({ paymentId }).session(session);
       if (existingBooking) {
         booking = existingBooking;
         bookingWasExisting = true;
         return;
       }
-      // For any cases of Failure after payment, Refund Logic can be added later
-      // Load the show document inside the transaction
-      const show = await Show.findById(showId).session(session);
+
+      const show = await Show.findById(showId)
+        .populate('movie', 'title')
+        .populate('theater', 'name')
+        .session(session);
       if (!show) throw new Error('Show not found');
 
-      // Is the show in the past?
       if (new Date(show.startTime) < new Date()) {
         throw new Error('Cannot book tickets for a past show.');
       }
 
-      const userId = req.user._id.toString();
+      const userId = user._id.toString();
       const now = new Date();
 
-      // Verify seats are locked by this user and locks not expired
       const invalidSeat = selectedSeats.find(reqSeat => {
-        const showSeat = show.seats.find(
-          s => s.row === reqSeat.row && s.col === reqSeat.col
-        );
+        const showSeat = show.seats.find(s => s.row === reqSeat.row && s.col === reqSeat.col);
         if (!showSeat) return true;
         if (showSeat.status !== 'locked') return true;
         if (!showSeat.lockedBy) return true;
@@ -57,9 +50,7 @@ export const createBooking = async (req, res) => {
 
       // Mark seats as booked
       selectedSeats.forEach(reqSeat => {
-        const seatIndex = show.seats.findIndex(
-          s => s.row === reqSeat.row && s.col === reqSeat.col
-        );
+        const seatIndex = show.seats.findIndex(s => s.row === reqSeat.row && s.col === reqSeat.col);
         if (seatIndex > -1) {
           show.seats[seatIndex].status = 'booked';
           show.seats[seatIndex].lockedBy = null;
@@ -69,43 +60,47 @@ export const createBooking = async (req, res) => {
 
       await show.save({ session });
 
-      // Create booking record inside the same transaction
+      const showSnapshot = {
+        movieTitle: show.movie.title,
+        theaterName: show.theater.name,
+        screenNumber: show.screenNumber,
+        startTime: show.startTime,
+      };
+
+      const enrichedSeats = selectedSeats.map(reqSeat => {
+        const dbSeat = show.seats.find(s => s.row === reqSeat.row && s.col === reqSeat.col);
+        return {
+          row: reqSeat.row,
+          col: reqSeat.col,
+          seatNumber: dbSeat?.seatNumber || `R${reqSeat.row}-C${reqSeat.col}`,
+          tier: dbSeat?.type || 'Standard'
+        };
+      });
+
       booking = await Booking.create([
         {
-          user: req.user._id,
+          user: user._id,
           show: showId,
-          seats: selectedSeats,
+          showSnapshot,
+          seats: enrichedSeats,
           totalAmount: amount,
           paymentId: paymentId,
         },
       ], { session });
 
-      // Booking.create returns an array when given an array
       booking = Array.isArray(booking) ? booking[0] : booking;
     });
 
-    if (bookingWasExisting) {
-      res.status(200).json(booking);
-    } else {
-      res.status(201).json(booking);
-    }
-  } catch (error) {
-    // Distinguish known validation errors
-    if (error.message === 'Show not found') {
-      res.status(404).json({ message: error.message });
-    } else if (error.message === 'Cannot book tickets for a past show.') {
-      res.status(400).json({ message: error.message });
-    } else if (error.message === 'One or more seats are not held by you or have expired.') {
-      res.status(400).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: error.message });
-    }
+    return { booking, bookingWasExisting };
   } finally {
     session.endSession();
   }
 };
 
-// Pre-payment verification endpoint
+
+// @desc    Pre-payment verification endpoint
+// @route   router.post('/verify', protect, verifyBeforePayment);
+// @access  Private
 export const verifyBeforePayment = async (req, res) => {
   const { showId, selectedSeats } = req.body;
   // selectedSeats = [{ row: 0, col: 1 }, { row: 0, col: 2 }]
@@ -151,21 +146,115 @@ export const verifyBeforePayment = async (req, res) => {
   }
 };
 
+// @desc    Cancel booking and process tiered refund
+// @route   PUT /api/bookings/:id/cancel
+// @access  Private
+export const cancelBooking = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    const bookingId = req.params.id;
+    const userId = req.user._id;
+
+    // 1. Fetch Booking and Validate State
+    const booking = await Booking.findById(bookingId).session(session);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    if (booking.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Unauthorized action' });
+    }
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ message: 'Booking is already cancelled' });
+    }
+
+    // 2. Fetch Show and Calculate Time Difference
+    const show = await Show.findById(booking.show).session(session);
+    if (!show) return res.status(404).json({ message: 'Associated show missing' });
+
+    const currentTime = new Date();
+    const showStartTime = new Date(show.startTime);
+    
+    // Calculate difference in hours
+    const timeDiffMs = showStartTime - currentTime;
+    const hoursRemaining = timeDiffMs / (1000 * 60 * 60);
+
+    if (hoursRemaining <= 1) {
+      return res.status(400).json({ message: 'Cancellations are not allowed less than 1 hour before the show' });
+    }
+
+    // 3. Determine Refund Percentage based on Base Price
+    // Note: Assuming `booking.basePrice` is stored in your DB (see suggestions below)
+    let refundPercentage = 0;
+
+    if (hoursRemaining >= 48) {
+      refundPercentage = 0.75;
+    } else if (hoursRemaining >= 12) {
+      refundPercentage = 0.50;
+    } else if (hoursRemaining > 1) {
+      refundPercentage = 0.25;
+    }
+
+    const BASE_PRICE_DIVISOR = 1.0839924;
+    const basePriceInRupees = Math.round(booking.totalAmount / BASE_PRICE_DIVISOR);
+    const refundAmountInRupees = basePriceInRupees * refundPercentage;
+    const refundAmountInPaise = Math.round(refundAmountInRupees * 100);
+
+    // 4. Initiate Razorpay Refund (External API call)
+    let refund;
+    if (refundAmountInPaise > 0) {
+      refund = await razorpayInstance.payments.refund(booking.paymentId, {
+        amount: refundAmountInPaise,
+        notes: {
+          reason: 'Tiered user cancellation',
+          bookingId: booking._id.toString()
+        }
+      });
+    }
+
+    // 5. Update Database safely using a Transaction
+    await session.withTransaction(async () => {
+      // Mark booking as cancelled
+      booking.status = 'cancelled';
+      if (refund) {
+        booking.refundId = refund.id;
+        booking.refundAmount = refundAmountInRupees;
+      }
+      await booking.save({ session });
+
+      // Release the seats in the Show document
+      booking.seats.forEach(bookedSeat => {
+        const seatIndex = show.seats.findIndex(
+          s => s.row === bookedSeat.row && s.col === bookedSeat.col
+        );
+        if (seatIndex > -1) {
+          show.seats[seatIndex].status = 'available';
+          show.seats[seatIndex].lockedBy = null;
+          show.seats[seatIndex].lockExpiresAt = null;
+        }
+      });
+      await show.save({ session });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Booking cancelled successfully. ₹${refundAmountInRupees} will be refunded.`,
+      refundId: refund?.id || null
+    });
+
+  } catch (error) {
+    console.error('Cancellation Error:', error);
+    res.status(500).json({ message: 'Server error during cancellation processing.' });
+  } finally {
+    session.endSession();
+  }
+};
+
 // @desc    Get logged in user's bookings
 // @route   GET /api/bookings/mybookings
 // @access  Private
 export const getMyBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user._id })
-      .populate({
-        path: 'show',
-        populate: {
-            path: 'movie theater',
-            select: 'title posterUrl name location'
-        }
-      })
-      .sort({ createdAt: -1 }); // Newest first
-
+    const bookings = await Booking.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: error.message });

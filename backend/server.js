@@ -1,47 +1,18 @@
-// import express from 'express';
-// import dotenv from 'dotenv';
-// import cors from 'cors';
-// import connectDB from './src/config/db.js'; // Note the .js extension!
-
-// import authRoutes from './src/routes/authRoutes.js';
-// import movieRoutes from './src/routes/movieRoutes.js';
-// import theaterRoutes from './src/routes/theaterRoutes.js';
-// import showRoutes from './src/routes/showRoutes.js';
-
-// dotenv.config();
-// connectDB();
-
-// const app = express();
-
-// app.use(express.json());
-// app.use(cors());
-
-// // Mount Routes
-// app.use('/api/auth', authRoutes);
-// app.use('/api/movies', movieRoutes);
-// app.use('/api/theaters', theaterRoutes);
-// app.use('/api/shows', showRoutes);
-
-// const PORT = process.env.PORT || 5000;
-
-// app.listen(PORT, () => {
-//   console.log(`Server running on port ${PORT}`);
-// });
-
-
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { createServer } from 'http'; // Standard Node HTTP module
 import { Server } from 'socket.io';  // Socket.io library
 import connectDB from './src/config/db.js';
+import { handleRazorpayWebhook } from './src/controllers/webhookController.js'; 
 
 import authRoutes from './src/routes/authRoutes.js';
 import movieRoutes from './src/routes/movieRoutes.js';
 import theaterRoutes from './src/routes/theaterRoutes.js';
 import showRoutes from './src/routes/showRoutes.js';
 import bookingRoutes from './src/routes/bookingRoutes.js';
-import { handleSeatSocket } from './src/sockets/seatSocket.js'; // We will create this next
+import { handleSeatSocket } from './src/sockets/seatSocket.js'; 
+import paymentRoutes from './src/routes/paymentRoutes.js';
 
 dotenv.config();
 connectDB();
@@ -57,8 +28,25 @@ const io = new Server(httpServer, {
   }
 });
 
+// Webhook route: Uses express.raw() to get the unparsed body for signature verification
+app.post(
+  '/api/payments/webhook',
+  express.raw({ type: 'application/json' }),
+  handleRazorpayWebhook
+);
+
 app.use(express.json());
 app.use(cors());
+
+// Base root route for health check and verification
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Movie Booking API is running smoothly',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date()
+  });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -66,6 +54,8 @@ app.use('/api/movies', movieRoutes);
 app.use('/api/theaters', theaterRoutes);
 app.use('/api/shows', showRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/payments', paymentRoutes);
+
 
 // Initialize Socket Logic
 handleSeatSocket(io);
