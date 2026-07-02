@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { razorpayInstance } from '../config/razorpay.js';
 
 // Internal service function that executes the transaction
-export const executeBookingCore = async ({ showId, selectedSeats, amount, paymentId, user }) => {
+export const createBooking = async ({ showId, selectedSeats, amount, paymentId, user }) => {
   if (!paymentId) throw new Error('paymentId is required');
 
   const session = await mongoose.startSession();
@@ -97,29 +97,10 @@ export const executeBookingCore = async ({ showId, selectedSeats, amount, paymen
   }
 };
 
-// @desc    Create new booking (Finalize Ticket)
-// @route   POST /api/bookings
+
+// @desc    Pre-payment verification endpoint
+// @route   router.post('/verify', protect, verifyBeforePayment);
 // @access  Private
-export const createBooking = async (req, res) => {
-  try {
-    const { showId, selectedSeats, amount, paymentId } = req.body;
-    const { booking, bookingWasExisting } = await executeBookingCore({
-      showId, selectedSeats, amount, paymentId, user: req.user
-    });
-
-    res.status(bookingWasExisting ? 200 : 201).json(booking);
-  } catch (error) {
-    if (['Show not found', 'paymentId is required'].includes(error.message)) {
-      res.status(404).json({ message: error.message });
-    } else if (['Cannot book tickets for a past show.', 'One or more seats are not held by you or have expired.'].includes(error.message)) {
-      res.status(400).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: error.message });
-    }
-  }
-};
-
-// Pre-payment verification endpoint
 export const verifyBeforePayment = async (req, res) => {
   const { showId, selectedSeats } = req.body;
   // selectedSeats = [{ row: 0, col: 1 }, { row: 0, col: 2 }]

@@ -1,5 +1,5 @@
 import { validateWebhookSignature } from 'razorpay/dist/utils/razorpay-utils.js';
-import { executeBookingCore } from './bookingController.js';
+import { createBooking } from './bookingController.js';
 import Booking from '../models/Booking.js';
 
 export const handleRazorpayWebhook = async (req, res) => {
@@ -29,7 +29,7 @@ export const handleRazorpayWebhook = async (req, res) => {
       const { showId, userId, selectedSeats, amount } = payment.notes;
       
       try {
-        await executeBookingCore({
+        await createBooking({
           showId,
           selectedSeats: JSON.parse(selectedSeats),
           amount: amount / 100,

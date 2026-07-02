@@ -1,7 +1,7 @@
 import { razorpayInstance } from '../config/razorpay.js';
 import Show from '../models/Show.js';
 import crypto from 'crypto';
-import { executeBookingCore } from './bookingController.js'; 
+import { createBooking } from './bookingController.js'; 
 import { calculateFinalPrice } from '../utils/finalPriceCalculator.js';
 
 // @desc    Create Razorpay Order
@@ -98,7 +98,7 @@ export const verifyPaymentSignature = async (req, res) => {
 
     const finalCalculatedAmount = calculateFinalPrice(baseAmount);
     // 3. Directly call the transactional booking system inside the backend!
-    const { booking } = await executeBookingCore({
+    const { booking } = await createBooking({
       showId,
       selectedSeats,
       amount: finalCalculatedAmount,
