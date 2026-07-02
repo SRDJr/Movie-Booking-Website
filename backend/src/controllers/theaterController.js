@@ -38,3 +38,22 @@ export const getTheaters = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Get distinct cities with active theaters
+// @route   GET /api/theaters/cities
+// @access  Public
+export const getDistinctCities = async (req, res) => {
+  try {
+    // MongoDB fetches all unique values for the 'location.city' field
+    const cities = await Theater.distinct('location.city');
+    
+    // Clean the data: remove any empty/null values and sort alphabetically
+    const cleanCities = cities
+      .filter(city => city && city.trim() !== '')
+      .sort((a, b) => a.localeCompare(b));
+
+    res.json(cleanCities);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
