@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { validateWebhookSignature } from 'razorpay/dist/utils/razorpay-utils.js';
 import { executeBookingCore } from './bookingController.js';
 import Booking from '../models/Booking.js';
 
@@ -6,16 +6,18 @@ export const handleRazorpayWebhook = async (req, res) => {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   const signature = req.headers['x-razorpay-signature'];
 
-  // 1. Verify the signature
-  const shasum = crypto.createHmac('sha256', webhookSecret);
-  shasum.update(JSON.stringify(req.body));
-  const digest = shasum.digest('hex');
+  // 1. Verify the signature using the official SDK utility
+  const isAuthentic = validateWebhookSignature(
+    req.body.toString(), // The raw body string
+    signature, 
+    webhookSecret
+  );
 
-  if (digest !== signature) {
+  if (!isAuthentic) {
     return res.status(400).send('Invalid webhook signature');
   }
 
-  // 2. Process the event
+  // 2. Parse the body into JSON AFTER verification
   const event = JSON.parse(req.body.toString());
 
   if (event.event === 'payment.captured') {
@@ -24,7 +26,6 @@ export const handleRazorpayWebhook = async (req, res) => {
     // Check if we already processed this
     const existing = await Booking.findOne({ paymentId: payment.id });
     if (!existing) {
-      // Extract metadata sent during order creation
       const { showId, userId, selectedSeats, amount } = payment.notes;
       
       try {

@@ -12,7 +12,7 @@ import theaterRoutes from './src/routes/theaterRoutes.js';
 import showRoutes from './src/routes/showRoutes.js';
 import bookingRoutes from './src/routes/bookingRoutes.js';
 import { handleSeatSocket } from './src/sockets/seatSocket.js'; 
-import paymentRoutes from './routes/paymentRoutes.js';
+import paymentRoutes from './src/routes/paymentRoutes.js';
 
 dotenv.config();
 connectDB();
@@ -37,6 +37,16 @@ app.post(
 
 app.use(express.json());
 app.use(cors());
+
+// Base root route for health check and verification
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Movie Booking API is running smoothly',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date()
+  });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
