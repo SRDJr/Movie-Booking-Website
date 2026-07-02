@@ -66,7 +66,7 @@ export const createShow = async (req, res) => {
           generatedSeats.push({
             row: rowIndex,
             col: colIndex,
-            type: 'Platinum', // We can expand logic here for VIP if val == 2
+            type: seatTier, // We can expand logic here for VIP if val == 2
             status: 'available',
             price: pricing[seatTier]
           });
@@ -97,11 +97,24 @@ export const createShow = async (req, res) => {
 // ... inside getShowsByMovie function
 export const getShowsByMovie = async (req, res) => {
   const { movieId } = req.params;
-  const { date } = req.query;
+  const { date, city } = req.query;
 
   try {
     let query = { movie: movieId };
 
+    if (city) {
+      const theaters = await Theater.find({ 
+        'location.city': { $regex: new RegExp(`^${city}$`, 'i') } 
+      });
+      
+      const theaterIds = theaters.map(t => t._id);
+      
+      // If no theaters in this city, return empty immediately without hitting the Show collection
+      if (theaterIds.length === 0) return res.json([]); 
+      
+      query.theater = { $in: theaterIds };
+    }
+    
     if (date) {
       const startOfDay = new Date(date);
       const endOfDay = new Date(date);
@@ -144,6 +157,52 @@ export const getShowDetails = async (req, res) => {
     if (!show) return res.status(404).json({ message: 'Show not found' });
 
     res.json(show);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get distinct active movies by city (For Home Page)
+// @route   GET /api/shows/active-movies?city=Bhubaneswar
+// @access  Public
+export const getActiveMoviesByCity = async (req, res) => {
+  const { city } = req.query;
+
+  if (!city) {
+    return res.status(400).json({ message: 'City parameter is required' });
+  }
+
+  try {
+    // 1. Find all theaters in the user's selected city (case-insensitive)
+    const theaters = await Theater.find({ 
+      'location.city': { $regex: new RegExp(`^${city}$`, 'i') } 
+    });
+    
+    const theaterIds = theaters.map(t => t._id);
+
+    if (theaterIds.length === 0) {
+      return res.json([]); // Return empty array if no theaters exist in this city
+    }
+
+    // 2. Find all upcoming shows in those specific theaters
+    const activeShows = await Show.find({
+      theater: { $in: theaterIds },
+      startTime: { $gte: new Date() } // Only shows in the future
+    }).populate('movie'); // Bring in the movie details (poster, title, etc.)
+
+    // 3. Extract unique movies to prevent sending duplicate posters to the frontend
+    const uniqueMoviesMap = new Map();
+    
+    activeShows.forEach(show => {
+      // Ensure the movie exists and hasn't been added to our map yet
+      if (show.movie && !uniqueMoviesMap.has(show.movie._id.toString())) {
+        uniqueMoviesMap.set(show.movie._id.toString(), show.movie);
+      }
+    });
+
+    const uniqueMovies = Array.from(uniqueMoviesMap.values());
+
+    res.json(uniqueMovies);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

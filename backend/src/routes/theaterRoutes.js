@@ -1,10 +1,11 @@
 import express from 'express';
-import { createTheater, getTheaters } from '../controllers/theaterController.js';
+import { createTheater, getTheaters, getDistinctCities } from '../controllers/theaterController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // Public: Users can search theaters
+router.get('/cities', getDistinctCities);
 router.get('/', getTheaters);
 
 // Protected: Only Admin can add theaters
