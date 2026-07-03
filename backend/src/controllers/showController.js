@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Show from '../models/Show.js';
 import Theater from '../models/Theater.js';
 import Movie from '../models/Movie.js';
@@ -36,11 +37,11 @@ export const createShow = async (req, res) => {
     });
 
     if (existingShow) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Time slot conflict! Another show is running on this screen during this time.',
         conflictDetails: {
-            existingStart: existingShow.startTime,
-            existingEnd: existingShow.endTime
+          existingStart: existingShow.startTime,
+          existingEnd: existingShow.endTime
         }
       });
     }
@@ -56,13 +57,13 @@ export const createShow = async (req, res) => {
     // We iterate the 2D array: row index = i, col index = j
     // If layout[i][j] == 1, it's a valid seat.
     const generatedSeats = [];
-    
+
     screen.seatLayout.forEach((rowArr, rowIndex) => {
       rowArr.forEach((val, colIndex) => {
         if (val > 0) { // 0 = Aisle
           let seatTier = 'Platinum';
-          if(val == 2)  seatTier = 'Gold';
-          if(val == 3)  seatTier = 'Diamond';
+          if (val == 2) seatTier = 'Gold';
+          if (val == 3) seatTier = 'Diamond';
           generatedSeats.push({
             row: rowIndex,
             col: colIndex,
@@ -103,35 +104,35 @@ export const getShowsByMovie = async (req, res) => {
     let query = { movie: movieId };
 
     if (city) {
-      const theaters = await Theater.find({ 
-        'location.city': { $regex: new RegExp(`^${city}$`, 'i') } 
+      const theaters = await Theater.find({
+        'location.city': { $regex: new RegExp(`^${city}$`, 'i') }
       });
-      
+
       const theaterIds = theaters.map(t => t._id);
-      
+
       // If no theaters in this city, return empty immediately without hitting the Show collection
-      if (theaterIds.length === 0) return res.json([]); 
-      
+      if (theaterIds.length === 0) return res.json([]);
+
       query.theater = { $in: theaterIds };
     }
-    
+
     if (date) {
       const startOfDay = new Date(date);
       const endOfDay = new Date(date);
       endOfDay.setDate(endOfDay.getDate() + 1);
-      
+
       // FIX: Only show shows between Start/End of day
       // AND ensure the show hasn't already started (if looking at today)
       const now = new Date();
-      
-      query.startTime = { 
-        $gte: startOfDay, 
-        $lt: endOfDay 
+
+      query.startTime = {
+        $gte: startOfDay,
+        $lt: endOfDay
       };
 
       // If the user is querying "Today", filter out passed times
       if (startOfDay.getDate() === now.getDate()) {
-         query.startTime = { $gte: now, $lt: endOfDay };
+        query.startTime = { $gte: now, $lt: endOfDay };
       }
     }
 
@@ -174,10 +175,10 @@ export const getActiveMoviesByCity = async (req, res) => {
 
   try {
     // 1. Find all theaters in the user's selected city (case-insensitive)
-    const theaters = await Theater.find({ 
-      'location.city': { $regex: new RegExp(`^${city}$`, 'i') } 
+    const theaters = await Theater.find({
+      'location.city': { $regex: new RegExp(`^${city}$`, 'i') }
     });
-    
+
     const theaterIds = theaters.map(t => t._id);
 
     if (theaterIds.length === 0) {
@@ -192,7 +193,7 @@ export const getActiveMoviesByCity = async (req, res) => {
 
     // 3. Extract unique movies to prevent sending duplicate posters to the frontend
     const uniqueMoviesMap = new Map();
-    
+
     activeShows.forEach(show => {
       // Ensure the movie exists and hasn't been added to our map yet
       if (show.movie && !uniqueMoviesMap.has(show.movie._id.toString())) {
@@ -203,6 +204,99 @@ export const getActiveMoviesByCity = async (req, res) => {
     const uniqueMovies = Array.from(uniqueMoviesMap.values());
 
     res.json(uniqueMovies);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get grouped shows for a movie by city and date
+// @route   GET /api/shows/grouped?movieId=123&city=Mumbai&date=2026-07-03
+// @access  Public
+export const getGroupedShows = async (req, res) => {
+  const { movieId, city, date } = req.query;
+
+  if (!movieId || !city || !date) {
+    return res.status(400).json({ message: 'Movie ID, City, and Date are required.' });
+  }
+
+  try {
+    // 1. Calculate the start and end of the requested date (Local timezone safe)
+    const targetDate = new Date(date);
+    // Append the IST timezone offset (+05:30) so MongoDB converts it to the correct UTC bounds
+    const startOfDay = new Date(`${date}T00:00:00+05:30`);
+    const endOfDay = new Date(`${date}T23:59:59+05:30`);
+    const cleanCity = city.trim();
+
+    // 2. The Aggregation Pipeline
+    const pipeline = [
+      // Step A: Match using 'movie' instead of 'movieId'
+      {
+        $match: {
+          movie: new mongoose.Types.ObjectId(movieId),
+          startTime: { $gte: startOfDay, $lte: endOfDay }
+        }
+      },
+      // Step B: Lookup using 'theater' instead of 'theaterId'
+      {
+        $lookup: {
+          from: 'theaters', // Make sure this matches your MongoDB collection name
+          localField: 'theater',
+          foreignField: '_id',
+          as: 'theaterDetails'
+        }
+      },
+      // Step C: Flatten the theater array
+      { $unwind: '$theaterDetails' },
+      // Step D: Filter by the user's selected city
+      {
+        $match: {
+          'theaterDetails.location.city': { $regex: new RegExp(`^${city}$`, 'i') }
+        }
+      },
+      // Step E: Group the results by Theater
+      {
+        $group: {
+          _id: '$theaterDetails._id',
+          theaterName: { $first: '$theaterDetails.name' },
+          address: { $first: '$theaterDetails.location.address' },
+          allScreens: { $first: '$theaterDetails.screens' },
+          shows: {
+            $push: {
+              showId: '$_id',
+              startTime: '$startTime',
+              screenNumber: '$screenNumber'
+            }
+          }
+        }
+      }
+    ];
+
+    const rawGroupedData = await Show.aggregate(pipeline);
+
+    // 3. Post-process to map screen types and sort times
+    const formattedData = rawGroupedData.map((theater) => {
+      const mappedShows = theater.shows.map((show) => {
+        // Find the specific screen object inside the theater to grab its type (e.g., IMAX, PVR)
+        const screenInfo = theater.allScreens.find(s => s.screenNumber === show.screenNumber);
+        return {
+          showId: show.showId,
+          startTime: show.startTime,
+          screenType: screenInfo ? screenInfo.screenType : 'Standard'
+        };
+      });
+
+      // Sort shows chronologically for the UI
+      mappedShows.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+
+      return {
+        theaterId: theater._id,
+        theaterName: theater.theaterName,
+        address: theater.address,
+        shows: mappedShows
+      };
+    });
+
+    res.json(formattedData);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

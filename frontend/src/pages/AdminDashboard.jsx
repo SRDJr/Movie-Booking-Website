@@ -20,7 +20,7 @@ const AdminDashboard = () => {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery) return;
-    
+
     setLoading(true);
     try {
       const { data } = await api.get(`/movies/search?query=${searchQuery}`);
@@ -42,12 +42,12 @@ const AdminDashboard = () => {
     try {
       await api.post('/movies/import', { tmdbId });
       toast.update(toastId, { render: `${title} imported successfully!`, type: "success", isLoading: false, autoClose: 3000 });
-      setFailedAttempts(0); 
+      setFailedAttempts(0);
     } catch (error) {
       const newFails = failedAttempts + 1;
       setFailedAttempts(newFails);
       const errorMsg = error.response?.data?.message || 'Failed to import';
-      
+
       if (newFails >= MAX_ADMIN_ATTEMPTS) {
         toast.update(toastId, { render: `Critical Failure: TMDB is down. Try again later.`, type: "error", isLoading: false, autoClose: 5000 });
       } else {
@@ -69,17 +69,18 @@ const AdminDashboard = () => {
   const MAX_COLS = 40;
   const MAX_SCREENS = 50; // Max number of screens a single theater can have
 
-    // --- STATE ---
+  // --- STATE ---
   const [theaterName, setTheaterName] = useState('');
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [screenNumber, setScreenNumber] = useState(1);
   const [screenType, setScreenType] = useState('Standard'); // Dynamic Screen Type
-  
+  const [screenTypesList, setScreenTypesList] = useState([]);
+
   const [rows, setRows] = useState(DEFAULT_SIZE);
   const [cols, setCols] = useState(DEFAULT_SIZE);
-  
-    // --- LOGIC ---
+
+  // --- LOGIC ---
   // 0: Aisle, 1: Platinum, 2: Gold, 3: Diamond
   const [seatLayout, setSeatLayout] = useState(
     Array.from({ length: DEFAULT_SIZE }, () => Array(DEFAULT_SIZE).fill(1))
@@ -142,11 +143,11 @@ const AdminDashboard = () => {
       ]
     };
 
+    const toastId = toast.loading('Saving theater...');
     try {
-      const toastId = toast.loading('Saving theater...');
       await api.post('/theaters', payload);
       toast.update(toastId, { render: 'Theater created successfully!', type: 'success', isLoading: false, autoClose: 3000 });
-      
+
       // Reset form
       setTheaterName('');
       setCity('');
@@ -156,13 +157,18 @@ const AdminDashboard = () => {
       handleGridResize(DEFAULT_SIZE, DEFAULT_SIZE);
     } catch (error) {
       const msg = error.response?.data?.message || 'Failed to create theater';
-      toast.error(msg);
+      toast.update(toastId, {
+        render: msg,
+        type: 'error',
+        isLoading: false,
+        autoClose: 5000
+      });
     }
   };
 
   // Helper for rendering seat colors
   const getSeatColor = (val) => {
-    switch(val) {
+    switch (val) {
       case 0: return 'bg-transparent border border-gray-300'; // Aisle
       case 1: return 'bg-blue-500 hover:bg-blue-400 border-blue-600'; // Platinum
       case 2: return 'bg-yellow-400 hover:bg-yellow-300 border-yellow-500'; // Gold
@@ -177,32 +183,39 @@ const AdminDashboard = () => {
   // ==========================================
   const [moviesList, setMoviesList] = useState([]);
   const [theatersList, setTheatersList] = useState([]);
-  
+
   const [selectedMovie, setSelectedMovie] = useState('');
   const [selectedTheater, setSelectedTheater] = useState('');
   const [selectedScreen, setSelectedScreen] = useState('');
   const [showStartTime, setShowStartTime] = useState('');
   const [prices, setPrices] = useState({ Platinum: 250, Gold: 350, Diamond: 500 });
 
-  // Fetch Movies and Theaters when the component mounts
+  // Fetch Movies, Theaters and ScreenTypes available when the component mounts
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
-        const [moviesRes, theatersRes] = await Promise.all([
+        const [moviesRes, theatersRes, screenTypesRes] = await Promise.all([
           api.get('/movies'),
-          api.get('/theaters')
+          api.get('/theaters'),
+          api.get('/theaters/screen-types')
         ]);
         setMoviesList(moviesRes.data);
         setTheatersList(theatersRes.data);
+
+        // Set the dynamic list and default the selection to the first item
+        if (screenTypesRes.data && screenTypesRes.data.length > 0) {
+          setScreenTypesList(screenTypesRes.data);
+          setScreenType(screenTypesRes.data[0]);
+        }
       } catch (error) {
-        toast.error('Failed to load movies or theaters');
+        toast.error('Failed to load initial data');
       }
     };
     fetchDropdownData();
   }, []);
 
   // Derived state: Get the screens for the currently selected theater
-  const availableScreens = selectedTheater 
+  const availableScreens = selectedTheater
     ? theatersList.find(t => t._id === selectedTheater)?.screens || []
     : [];
 
@@ -248,33 +261,33 @@ const AdminDashboard = () => {
         startTime: new Date(showStartTime).toISOString(),
         pricing: prices
       });
-      
+
       toast.update(toastId, { render: 'Show scheduled successfully!', type: 'success', isLoading: false, autoClose: 3000 });
-      
+
       // Reset form
       setSelectedMovie('');
       setSelectedTheater('');
       setSelectedScreen('');
       setShowStartTime('');
-      setPrices({Platinum: 250, Gold: 350, Diamond: 500});
+      setPrices({ Platinum: 250, Gold: 350, Diamond: 500 });
     } catch (error) {
       const errorMsg = error.response?.data?.message || 'Failed to schedule show';
-      
+
       if (error.response?.status === 400 && error.response?.data?.conflictDetails) {
         // Update the loading toast into a conflict error
-        toast.update(toastId, { 
-          render: `Conflict! Another show runs from ${new Date(error.response.data.conflictDetails.existingStart).toLocaleTimeString()} to ${new Date(error.response.data.conflictDetails.existingEnd).toLocaleTimeString()}`, 
-          type: 'error', 
-          isLoading: false, 
-          autoClose: 5000 
+        toast.update(toastId, {
+          render: `Conflict! Another show runs from ${new Date(error.response.data.conflictDetails.existingStart).toLocaleTimeString()} to ${new Date(error.response.data.conflictDetails.existingEnd).toLocaleTimeString()}`,
+          type: 'error',
+          isLoading: false,
+          autoClose: 5000
         });
       } else {
         // Update the loading toast into a standard error
-        toast.update(toastId, { 
-          render: errorMsg, 
-          type: 'error', 
-          isLoading: false, 
-          autoClose: 3000 
+        toast.update(toastId, {
+          render: errorMsg,
+          type: 'error',
+          isLoading: false,
+          autoClose: 3000
         });
       }
     }
@@ -290,9 +303,8 @@ const AdminDashboard = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`py-2 px-4 font-semibold capitalize transition ${
-              activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`py-2 px-4 font-semibold capitalize transition ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Manage {tab}
           </button>
@@ -306,7 +318,7 @@ const AdminDashboard = () => {
         {activeTab === 'movies' && (
           <div>
             <h2 className="text-xl font-bold mb-4">Import Movies from TMDB</h2>
-            
+
             {isLockedOut && (
               <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md border border-red-300">
                 ⚠️ Movie imports are temporarily locked due to repeated upstream failures. Please try again in a few minutes.
@@ -334,8 +346,8 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {searchResults.map((movie) => (
                 <div key={movie.id} className="flex gap-4 p-4 border border-gray-100 rounded-md bg-gray-50">
-                  <img 
-                    src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`} 
+                  <img
+                    src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`}
                     alt={movie.title}
                     className="w-16 h-24 object-cover rounded shadow-sm"
                     onError={(e) => e.target.src = 'https://via.placeholder.com/200x300?text=No+Poster'}
@@ -358,21 +370,27 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
-        
+
 
         {/* ======================= THEATER TAB ======================= */}
         {activeTab === 'theaters' && (
           <div>
             <h2 className="text-xl font-bold mb-6">Create Theater & Screen Layout</h2>
-            
+
             <form onSubmit={handleCreateTheater} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <input type="text" placeholder="Theater Name (e.g., PVR)" required value={theaterName} onChange={(e) => setTheaterName(e.target.value)} className="px-4 py-2 border rounded-md" />
                 <input type="number" placeholder="Screen Number" required min="1" max={MAX_SCREENS} value={screenNumber} onChange={(e) => setScreenNumber(Number(e.target.value))} className="px-4 py-2 border rounded-md" />
-                <select value={screenType} onChange={(e) => setScreenType(e.target.value)} className="px-4 py-2 border rounded-md bg-white">
-                  <option value="Standard">Standard</option>
-                  <option value="IMAX">IMAX</option>
-                  <option value="VIP">VIP</option>
+                <select
+                  value={screenType}
+                  onChange={(e) => setScreenType(e.target.value)}
+                  className="px-4 py-2 border rounded-md bg-white"
+                >
+                  {screenTypesList.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
                 </select>
                 <input type="text" placeholder="City" required value={city} onChange={(e) => setCity(e.target.value)} className="px-4 py-2 border rounded-md" />
                 <input type="text" placeholder="Full Address" required value={address} onChange={(e) => setAddress(e.target.value)} className="px-4 py-2 border rounded-md lg:col-span-2" />
@@ -400,9 +418,9 @@ const AdminDashboard = () => {
               {/* Interactive Grid */}
               <div className="border-2 border-dashed border-gray-300 p-6 rounded-lg overflow-x-auto text-center bg-gray-50 touch-none">
                 <div className="inline-block w-4/5 h-8 bg-gray-300 mb-8 rounded-b-3xl mx-auto flex items-center justify-center text-sm font-bold text-gray-500 tracking-widest shadow-inner">SCREEN THIS WAY</div>
-                
-                <div 
-                  className="inline-grid gap-1.5 p-2 bg-white rounded border shadow-sm" 
+
+                <div
+                  className="inline-grid gap-1.5 p-2 bg-white rounded border shadow-sm"
                   style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
                   onMouseLeave={() => setIsMouseDown(false)} // Safety stop if mouse leaves grid
                 >
@@ -433,15 +451,15 @@ const AdminDashboard = () => {
         {activeTab === 'shows' && (
           <div>
             <h2 className="text-xl font-bold mb-6">Schedule a Show</h2>
-            
+
             <form onSubmit={handleCreateShow} className="space-y-6 max-w-2xl bg-gray-50 p-6 rounded-lg border border-gray-200">
-              
+
               {/* Select Movie */}
               <div className="flex flex-col">
                 <label className="font-semibold text-gray-700 mb-2">Select Movie</label>
-                <select 
-                  value={selectedMovie} 
-                  onChange={(e) => setSelectedMovie(e.target.value)} 
+                <select
+                  value={selectedMovie}
+                  onChange={(e) => setSelectedMovie(e.target.value)}
                   required
                   className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                 >
@@ -455,12 +473,12 @@ const AdminDashboard = () => {
               {/* Select Theater */}
               <div className="flex flex-col">
                 <label className="font-semibold text-gray-700 mb-2">Select Theater</label>
-                <select 
-                  value={selectedTheater} 
+                <select
+                  value={selectedTheater}
                   onChange={(e) => {
                     setSelectedTheater(e.target.value);
                     setSelectedScreen(''); // Reset screen when theater changes
-                  }} 
+                  }}
                   required
                   className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                 >
@@ -474,9 +492,9 @@ const AdminDashboard = () => {
               {/* Select Screen (Dynamically populates based on Theater) */}
               <div className="flex flex-col">
                 <label className="font-semibold text-gray-700 mb-2">Select Screen</label>
-                <select 
-                  value={selectedScreen} 
-                  onChange={(e) => setSelectedScreen(e.target.value)} 
+                <select
+                  value={selectedScreen}
+                  onChange={(e) => setSelectedScreen(e.target.value)}
                   required
                   disabled={!selectedTheater}
                   className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
@@ -494,60 +512,60 @@ const AdminDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <label className="font-semibold text-gray-700 mb-2">Start Time</label>
-                  <input 
-                    type="datetime-local" 
-                    value={showStartTime} 
-                    onChange={(e) => setShowStartTime(e.target.value)} 
+                  <input
+                    type="datetime-local"
+                    value={showStartTime}
+                    onChange={(e) => setShowStartTime(e.target.value)}
                     required
-                    min={getMinDatetime()} 
+                    min={getMinDatetime()}
                     className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 {/* Dynamic Tier Pricing */}
-              {selectedScreen && existingTiers.size > 0 && (
-                <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm mt-4 col-span-1 md:col-span-2">
-                  <h3 className="font-semibold text-gray-700 mb-3 border-b pb-2">Set Ticket Prices (₹)</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    
-                    {existingTiers.has('Platinum') && (
-                      <div className="flex flex-col">
-                        <label className="text-sm font-bold text-blue-600 mb-1">Platinum Seats</label>
-                        <input 
-                          type="number" min="50" required
-                          value={prices.Platinum} 
-                          onChange={(e) => handlePriceChange('Platinum', e.target.value)} 
-                          className="px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    )}
+                {selectedScreen && existingTiers.size > 0 && (
+                  <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm mt-4 col-span-1 md:col-span-2">
+                    <h3 className="font-semibold text-gray-700 mb-3 border-b pb-2">Set Ticket Prices (₹)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-                    {existingTiers.has('Gold') && (
-                      <div className="flex flex-col">
-                        <label className="text-sm font-bold text-yellow-600 mb-1">Gold Seats</label>
-                        <input 
-                          type="number" min="50" required
-                          value={prices.Gold} 
-                          onChange={(e) => handlePriceChange('Gold', e.target.value)} 
-                          className="px-3 py-2 border border-yellow-200 rounded focus:ring-2 focus:ring-yellow-500"
-                        />
-                      </div>
-                    )}
+                      {existingTiers.has('Platinum') && (
+                        <div className="flex flex-col">
+                          <label className="text-sm font-bold text-blue-600 mb-1">Platinum Seats</label>
+                          <input
+                            type="number" min="50" required
+                            value={prices.Platinum}
+                            onChange={(e) => handlePriceChange('Platinum', e.target.value)}
+                            className="px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
 
-                    {existingTiers.has('Diamond') && (
-                      <div className="flex flex-col">
-                        <label className="text-sm font-bold text-purple-600 mb-1">Diamond Seats</label>
-                        <input 
-                          type="number" min="50" required
-                          value={prices.Diamond} 
-                          onChange={(e) => handlePriceChange('Diamond', e.target.value)} 
-                          className="px-3 py-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                    )}
+                      {existingTiers.has('Gold') && (
+                        <div className="flex flex-col">
+                          <label className="text-sm font-bold text-yellow-600 mb-1">Gold Seats</label>
+                          <input
+                            type="number" min="50" required
+                            value={prices.Gold}
+                            onChange={(e) => handlePriceChange('Gold', e.target.value)}
+                            className="px-3 py-2 border border-yellow-200 rounded focus:ring-2 focus:ring-yellow-500"
+                          />
+                        </div>
+                      )}
 
+                      {existingTiers.has('Diamond') && (
+                        <div className="flex flex-col">
+                          <label className="text-sm font-bold text-purple-600 mb-1">Diamond Seats</label>
+                          <input
+                            type="number" min="50" required
+                            value={prices.Diamond}
+                            onChange={(e) => handlePriceChange('Diamond', e.target.value)}
+                            className="px-3 py-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+                      )}
+
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               </div>
 
               <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition shadow-sm">
