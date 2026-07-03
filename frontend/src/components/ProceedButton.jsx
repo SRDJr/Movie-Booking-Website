@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const ProceedButton = ({ showId, selectedSeats, userDetails, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -9,8 +9,8 @@ const ProceedButton = ({ showId, selectedSeats, userDetails, onSuccess }) => {
 
     try {
       // 1. Call the backend verify route
-      const response = await axios.post(
-        '/api/bookings/verify', 
+      const response = await api.post(
+        '/bookings/verify', 
         { showId, selectedSeats },
         { headers: { Authorization: `Bearer ${userDetails.token}` } } 
       );

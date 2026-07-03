@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import MovieBooking from './pages/MovieBooking'; 
+import SeatSelection from './pages/SeatSelection';
 
 // Components
 import Navbar from './components/layout/Navbar'; 
@@ -32,6 +33,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard/></AdminRoute>} />
             <Route path="/movie/:movieId" element={<MovieBooking />} />
+            <Route path="/seat-selection/:showId" element={<SeatSelection />} />
             
             {/* Future Routes */}
             {/* <Route path="/movie/:id" element={<MovieDetails />} /> */}
