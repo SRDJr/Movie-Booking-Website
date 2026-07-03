@@ -18,14 +18,14 @@ const Home = () => {
     const fetchData = async () => {
       setLoading(true);
       localStorage.setItem('userCity', city);
-      
+
       try {
         // Fetch both cities and movies concurrently for speed
         const [citiesRes, moviesRes] = await Promise.all([
           api.get('/theaters/cities'),
           api.get(`/shows/active-movies?city=${city}`)
         ]);
-        
+
         setAvailableCities(citiesRes.data);
         setMovies(moviesRes.data);
       } catch (error) {
@@ -98,7 +98,7 @@ const Home = () => {
                   setCitySearchInput(''); // Clear input to show all on click
                 }}
                 onChange={(e) => setCitySearchInput(e.target.value)}
-                onBlur={() => setTimeout(() => setIsCityDropdownOpen(false), 200)} // Delay hides to allow click register
+                onBlur={() => setTimeout(() => setIsCityDropdownOpen(false), 150)} // Slightly shorter timeout is fine now
                 className="w-full px-4 py-2.5 rounded-md text-gray-800 font-semibold border border-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white shadow-sm cursor-pointer"
               />
 
@@ -109,11 +109,12 @@ const Home = () => {
                     .map(c => (
                       <div
                         key={c}
-                        onClick={() => {
+                        // CHANGED HERE: onClick is now onMouseDown
+                        onMouseDown={() => {
                           setCity(c);
                           setIsCityDropdownOpen(false);
                         }}
-                        className="px-4 py-2 cursor-pointer hover:bg-red-50 text-gray-800 transition"
+                        className="px-4 py-2 cursor-pointer hover:bg-gray-200 text-gray-800 transition"
                       >
                         {c}
                       </div>

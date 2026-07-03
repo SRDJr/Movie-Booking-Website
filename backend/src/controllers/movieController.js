@@ -112,3 +112,21 @@ export const getMovies = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Get a single movie by ID
+// @route   GET /api/movies/:id
+// @access  Public
+export const getMovieById = async (req, res) => {
+  try {
+    const movie = await Movie.findById(req.params.id);
+    
+    if (!movie) {
+      return res.status(404).json({ message: 'Movie not found' });
+    }
+    
+    res.json(movie);
+  } catch (error) {
+    // If the ID format is completely invalid, mongoose throws an error
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import MovieBooking from './pages/MovieBooking'; 
 
 // Components
 import Navbar from './components/layout/Navbar'; 
@@ -29,8 +30,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard/></AdminRoute>} 
-            />
+            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard/></AdminRoute>} />
+            <Route path="/movie/:movieId" element={<MovieBooking />} />
             
             {/* Future Routes */}
             {/* <Route path="/movie/:id" element={<MovieDetails />} /> */}

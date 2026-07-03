@@ -10,7 +10,7 @@ const theaterSchema = new mongoose.Schema(
     screens: [
       {
         screenNumber: { type: Number, required: true },
-        screenType: { type: String, enum: ['Standard', 'IMAX', 'VIP'], default: 'Standard' },
+        screenType: { type: String, enum: ['Standard', 'IMAX', 'PVR'], default: 'Standard' },
         // A 2D array where 1 = seat, 0 = aisle/gap
         seatLayout: [
             [Number] 

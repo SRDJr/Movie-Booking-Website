@@ -7,6 +7,37 @@ export const createTheater = async (req, res) => {
   const { name, location, screens } = req.body;
 
   try {
+    // Check if the theater already exists by Name and exact Location
+    let presentTheater = await Theater.findOne({
+      name: name,
+      'location.city': location.city,
+      'location.address': location.address,
+    });
+
+    if (presentTheater) {
+      // Theater exists. Iterate through incoming screens and add them.
+      for (let newScreen of screens) {
+        // Validation: Prevent adding a screen number that already exists
+        const screenExists = presentTheater.screens.find(
+          (s) => s.screenNumber === newScreen.screenNumber
+        );
+        
+        if (screenExists) {
+          return res.status(400).json({ 
+            message: `Screen ${newScreen.screenNumber} already exists in ${name}, ${location.city}.` 
+          });
+        }
+        
+        // Push the new screen into the existing theater document
+        presentTheater.screens.push(newScreen);
+      }
+
+      // Save the updated document
+      const updatedTheater = await presentTheater.save();
+      return res.status(200).json(updatedTheater);
+    }
+
+    // If theater doesn't exist create a new one
     const theater = new Theater({
       name,
       location,
@@ -53,6 +84,25 @@ export const getDistinctCities = async (req, res) => {
       .sort((a, b) => a.localeCompare(b));
 
     res.json(cleanCities);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get available screen types from the Theater model
+// @route   GET /api/theaters/screen-types
+// @access  Admin
+export const getScreenTypes = async (req, res) => {
+  try {
+    // Navigate the schema path to find the enum values for screenType
+    // Adjust 'screens.screenType' if your nested schema path is slightly different
+    const screenTypeEnums = Theater.schema.path('screens.screenType').enumValues;
+    
+    if (!screenTypeEnums) {
+      return res.status(404).json({ message: "No screen types found in schema." });
+    }
+
+    res.json(screenTypeEnums);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
