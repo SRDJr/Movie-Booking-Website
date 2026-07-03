@@ -63,8 +63,9 @@ export const handleSeatSocket = (io) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       // Attach userId to socket for server-side use
-      socket.data.userId = decoded.id;
+      socket.data.userId = decoded.id || decoded._id;
     } catch (err) {
+      console.error('Socket Authentication Failed:', err.message);
       socket.emit('unauthorized', { message: 'Invalid token' });
       socket.disconnect(true);
       return;
