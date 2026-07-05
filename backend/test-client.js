@@ -1,7 +1,7 @@
 // test-client.js
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000");
+const socket = io("http://localhost:5000"); // Change this to respective socket URL (same as frontend URL)
 const SHOW_ID = "693b39c81ec053746cb09557"; // Copy from MongoDB Compass
 const USER_ID = "693b1c4cecd79cc524098971"; // Copy from MongoDB Compass
 

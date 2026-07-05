@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import MovieBooking from './pages/MovieBooking'; 
 import SeatSelection from './pages/SeatSelection';
+import PaymentSummary from './pages/PaymentSummary';
 
 // Components
 import Navbar from './components/layout/Navbar'; 
@@ -34,6 +35,7 @@ function App() {
             <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard/></AdminRoute>} />
             <Route path="/movie/:movieId" element={<MovieBooking />} />
             <Route path="/seat-selection/:showId" element={<SeatSelection />} />
+            <Route path="/checkout/:showId" element={<PaymentSummary />} />
             
             {/* Future Routes */}
             {/* <Route path="/movie/:id" element={<MovieDetails />} /> */}

@@ -57,7 +57,7 @@ const SeatSelection = () => {
         }
 
         // THE FIX: Strip "/api" from the environment variable to ensure we connect to the root namespace
-        let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        let socketUrl = import.meta.env.VITE_SOCKET_URL;
         socketUrl = socketUrl.replace(/\/api$/, '');
 
         // Connect to Socket
@@ -97,6 +97,16 @@ const SeatSelection = () => {
         return () => newSocket.disconnect();
     }, [showId]);
 
+    // Helper function to convert 0-indexed rows into Base-26 alphabetical labels (A, B... Z, AA, AB...)
+    const getRowLabel = (rowIndex) => {
+        let label = '';
+        let n = rowIndex;
+        while (n >= 0) {
+            label = String.fromCharCode(65 + (n % 26)) + label;
+            n = Math.floor(n / 26) - 1;
+        }
+        return label;
+    };
     // 3. Handle Seat Clicks (With Authentication Check)
     const handleSeatClick = (seat) => {
         const token = localStorage.getItem('token');
@@ -114,7 +124,15 @@ const SeatSelection = () => {
             return;
         }
 
+        const myLockedSeats = seats.filter(s => s.status === 'locked' && s.lockedBy === currentUserId);
+
+        console.log("Seat clicked:", seat.status);
+
         if (seat.status === 'available') {
+            if (myLockedSeats.length >= 6) {
+                toast.warning('You can only select up to 6 seats per transaction.');
+                return; // Stop the execution here
+            }
             socket.emit('request_seat_lock', { showId, row: seat.row, col: seat.col });
         } else if (seat.status === 'locked' && seat.lockedBy === currentUserId) {
             socket.emit('request_seat_unlock', { showId, row: seat.row, col: seat.col });
@@ -200,7 +218,7 @@ const SeatSelection = () => {
                                     key={`${rIdx}-${cIdx}`}
                                     onClick={() => seat && handleSeatClick(seat)}
                                     className={`w-8 h-8 sm:w-10 sm:h-10 rounded-t-lg border ${getSeatStyling(seat)} flex items-center justify-center`}
-                                    title={seat ? `Row ${String.fromCharCode(65 + rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
+                                    title={seat ? `Row ${getRowLabel(rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
                                 >
                                     {/* Optional: Add a subtle seat number inside the box for better UX */}
                                     {seat && seat.status === 'available' && (
@@ -262,7 +280,7 @@ const SeatSelection = () => {
                             <span className="text-sm font-bold text-gray-800 line-clamp-1 max-w-[200px]">
                                 {myLockedSeats.length === 0
                                     ? 'None'
-                                    : myLockedSeats.map(s => `${String.fromCharCode(65 + s.row)}${s.col + 1}`).join(', ')}
+                                    : myLockedSeats.map(s => `${getRowLabel(s.row)}${s.col + 1}`).join(', ')}
                             </span>
                         </div>
                         <div className="flex flex-col text-right">
@@ -274,7 +292,47 @@ const SeatSelection = () => {
                             showId={showId}
                             selectedSeats={myLockedSeats}
                             userDetails={{ token: localStorage.getItem('token')?.replace(/^"(.*)"$/, '$1') }}
-                            onSuccess={() => navigate(`/checkout/${showId}`)}
+                            onSuccess={() => {
+                                // 1. Parse the ISO string (use show.date or show.startTime depending on your schema)
+                                const showDateTime = new Date(show.startTime);
+
+                                // 2. Extract and format the Date (e.g., "Sat, Jul 4, 2026")
+                                const formattedDate = showDateTime.toLocaleDateString('en-IN', {
+                                    weekday: 'short',
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                });
+
+                                // 3. Extract and format the Time (e.g., "06:30 PM")
+                                const formattedTime = showDateTime.toLocaleTimeString('en-IN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                });
+
+                                // 4. Navigate and pass the nicely formatted strings
+                                navigate(`/checkout/${showId}`, {
+                                    state: {
+                                        showDetails: {
+                                            _id: show._id,
+                                            movieTitle: show.movie?.title,
+                                            posterUrl: show.movie?.posterUrl,
+                                            date: formattedDate, // Inserted the clean date
+                                            time: formattedTime, // Inserted the clean time
+                                            theaterName: show.theater?.name,
+                                            screenNumber: show.screenNumber,
+                                            address: show.theater?.location?.address,
+                                            city: show.theater?.location?.city
+                                        },
+                                        selectedSeats: myLockedSeats,
+                                        basePrice: totalPrice,
+                                        userDetails: {
+                                            token: localStorage.getItem('token')?.replace(/^"(.*)"$/, '$1')
+                                        }
+                                    }
+                                });
+                            }}
                         />
                     </div>
 

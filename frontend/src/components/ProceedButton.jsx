@@ -15,8 +15,10 @@ const ProceedButton = ({ showId, selectedSeats, userDetails, onSuccess }) => {
         { headers: { Authorization: `Bearer ${userDetails.token}` } } 
       );
 
+      console.log("🔍 Backend Verification Response:", response.data);
+
       // 2. If backend confirms seats are valid, trigger the transition
-      if (response.data.success) {
+      if (response.data.success || response.status === 200) {
         onSuccess(response.data);
       }
 

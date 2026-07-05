@@ -67,12 +67,24 @@ export const createBooking = async ({ showId, selectedSeats, amount, paymentId, 
         startTime: show.startTime,
       };
 
+      // Helper function to convert 0-indexed rows into Base-26 alphabetical labels (A, B... Z, AA, AB...)
+      const getRowLabel = (rowIndex) => {
+        let label = '';
+        let n = rowIndex;
+        while (n >= 0) {
+          label = String.fromCharCode(65 + (n % 26)) + label;
+          n = Math.floor(n / 26) - 1;
+        }
+        return label;
+      };
+
       const enrichedSeats = selectedSeats.map(reqSeat => {
+        const seatNumber = `${getRowLabel(reqSeat.row)}${reqSeat.col + 1}`;
         const dbSeat = show.seats.find(s => s.row === reqSeat.row && s.col === reqSeat.col);
         return {
           row: reqSeat.row,
           col: reqSeat.col,
-          seatNumber: dbSeat?.seatNumber || `R${reqSeat.row}-C${reqSeat.col}`,
+          seatNumber: seatNumber,
           tier: dbSeat?.type || 'Standard'
         };
       });
@@ -106,6 +118,9 @@ export const verifyBeforePayment = async (req, res) => {
   // selectedSeats = [{ row: 0, col: 1 }, { row: 0, col: 2 }]
 
   try {
+    if (selectedSeats.length > 6) {
+      return res.status(400).json({ message: 'Maximum 6 seats allowed per transaction.' });
+    }
     const show = await Show.findById(showId);
     if (!show) return res.status(404).json({ message: 'Show not found' });
 
@@ -151,7 +166,7 @@ export const verifyBeforePayment = async (req, res) => {
 // @access  Private
 export const cancelBooking = async (req, res) => {
   const session = await mongoose.startSession();
-  
+
   try {
     const bookingId = req.params.id;
     const userId = req.user._id;
@@ -159,7 +174,7 @@ export const cancelBooking = async (req, res) => {
     // 1. Fetch Booking and Validate State
     const booking = await Booking.findById(bookingId).session(session);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    
+
     if (booking.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: 'Unauthorized action' });
     }
@@ -173,7 +188,7 @@ export const cancelBooking = async (req, res) => {
 
     const currentTime = new Date();
     const showStartTime = new Date(show.startTime);
-    
+
     // Calculate difference in hours
     const timeDiffMs = showStartTime - currentTime;
     const hoursRemaining = timeDiffMs / (1000 * 60 * 60);

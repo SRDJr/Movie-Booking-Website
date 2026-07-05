@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
 import cors from 'cors';
 import { createServer } from 'http'; // Standard Node HTTP module
 import { Server } from 'socket.io';  // Socket.io library
@@ -14,7 +15,6 @@ import bookingRoutes from './src/routes/bookingRoutes.js';
 import { handleSeatSocket } from './src/sockets/seatSocket.js'; 
 import paymentRoutes from './src/routes/paymentRoutes.js';
 
-dotenv.config();
 connectDB();
 
 const app = express();
