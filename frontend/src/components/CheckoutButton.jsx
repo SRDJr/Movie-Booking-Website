@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { loadRazorpayScript } from '../services/loadScript';
+import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
@@ -97,12 +98,23 @@ const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
                 // Redirect user to "My Bookings" page here
                 if (verifyRes.data.success) {
                     toast.success("Payment successful! Your tickets are booked.");
-                    navigate('/my-bookings');
+                    // DESTROY THE LOCK AND TIMERS
+                    sessionStorage.removeItem('active_checkout');
+                    localStorage.removeItem('checkout_timer_expiry');
+                    navigate('/my-bookings', { replace: true });
                 }
             }
         } catch (error) {
-            console.error('Verification Error:', error);
-            alert('Payment succeeded, but ticket generation failed. Please contact support.');
+            // 🛑 ERROR CATCH: Timer expired while Razorpay was open
+            const errorMsg = error.response?.data?.message || 'Ticket generation failed.';
+
+            if (errorMsg.includes('refund') || errorMsg.includes('expired')) {
+                // Show the specific refund message to calm the user down
+                toast.error(errorMsg, { autoClose: 10000 });
+                navigate(`/seat-selection/${showId}`);
+            } else {
+                toast.error(errorMsg);
+            }
         }
     };
 

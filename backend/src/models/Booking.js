@@ -21,11 +21,17 @@ const bookingSchema = new mongoose.Schema(
     ],
     totalAmount: { type: Number, required: true },
     paymentId: { type: String, required: true }, // From Stripe/Razorpay
-    status: { 
-      type: String, 
-      enum: ['Confirmed', 'Cancelled'], 
-      default: 'Confirmed' 
-    }
+    status: {
+      type: String,
+      enum: ['Confirmed', 'Cancelled'],
+      default: 'Confirmed'
+    },
+    refundId: {
+      type: String
+    },
+    refundAmount: {
+      type: Number
+    },
   },
   { timestamps: true }
 );

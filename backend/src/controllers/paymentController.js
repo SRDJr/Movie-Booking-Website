@@ -121,10 +121,42 @@ export const verifyPaymentSignature = async (req, res) => {
 
     } catch (error) {
         console.error('Signature Verification & Booking Failure:', error);
-        // Gracefully separate booking engine errors from global network crashes
-        if (error.message.includes('seats are not held by you')) {
-            return res.status(400).json({ message: error.message });
+
+        if (error.message.includes('seats are not held by you') || error.message.includes('expired')) {
+            console.log(`Session expired! Initiating calculated partial refund for payment: ${razorpay_payment_id}`);
+
+            try {
+                // 1. Fetch the payment from Razorpay to get the final amount captured (y) in paise
+                const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+                const totalAmountPaidInPaise = payment.amount;
+
+                // 2. Reverse-calculate to remove Razorpay's fee + GST using your exact math
+                // x = y / 1.0839924
+                const baseAmountInPaise = Math.round(totalAmountPaidInPaise / 1.0839924);
+                const refundAmountInPaise = Math.round(baseAmountInPaise * 1.059);
+                // 3. Issue the refund using your existing instance and formatting
+                await razorpayInstance.payments.refund(razorpay_payment_id, {
+                    amount: refundAmountInPaise,
+                    notes: {
+                        reason: 'Session expired during checkout',
+                        showId: showId.toString()
+                    }
+                });
+
+                return res.status(400).json({
+                    success: false,
+                    message: 'Session expired. Your seats were released. A partial refund (excluding gateway fees) has been initiated and will reflect in your account within 3-5 business days.'
+                });
+            } catch (refundError) {
+                console.error("Critical: Refund failed!", refundError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Session expired. Payment captured but automatic refund failed. Please contact support.'
+                });
+            }
         }
+
+        // Catch-all for other server/database crashes
         res.status(500).json({ message: 'Server error during final processing.' });
     }
 };

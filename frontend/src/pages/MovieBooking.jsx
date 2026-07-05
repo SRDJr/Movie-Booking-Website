@@ -89,8 +89,8 @@ const MovieBooking = () => {
     const getBadgeColor = (type) => {
         switch (type?.toUpperCase()) {
             case 'IMAX': return 'bg-blue-600 text-white';
-            case 'VIP': return 'bg-yellow-500 text-black';
-            case '4DX': return 'bg-purple-600 text-white';
+            case 'PVR': return 'bg-yellow-500 text-black';
+            case 'Standard': return 'bg-purple-600 text-white';
             default: return 'bg-gray-200 text-gray-700';
         }
     };

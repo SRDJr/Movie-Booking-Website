@@ -6,3 +6,13 @@ body {
   background-color: #f3f4f6;
   color: #1f2937;
 }
+
+@keyframes heartbeat-zoom {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.animate-timer-zoom {
+  animation: heartbeat-zoom 1s infinite ease-in-out;
+  display: inline-block; /* Required for CSS transforms to work on text */
+}
