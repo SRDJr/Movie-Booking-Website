@@ -152,8 +152,8 @@ export const getShowsByMovie = async (req, res) => {
 export const getShowDetails = async (req, res) => {
   try {
     const show = await Show.findById(req.params.id)
-      .populate('movie', 'title')
-      .populate('theater', 'name');
+      .populate('movie', 'title posterUrl')
+      .populate('theater', 'name location');
 
     if (!show) return res.status(404).json({ message: 'Show not found' });
 
