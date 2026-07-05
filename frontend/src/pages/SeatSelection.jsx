@@ -293,7 +293,12 @@ const SeatSelection = () => {
                             selectedSeats={myLockedSeats}
                             userDetails={{ token: localStorage.getItem('token')?.replace(/^"(.*)"$/, '$1') }}
                             onSuccess={() => {
+                                // 0. GENERATE THE UNIQUE TRANSACTION KEY
+                                const transactionId = `txn_${Date.now()}`;
+                                sessionStorage.setItem('active_checkout', transactionId);
+
                                 // 1. Parse the ISO string (use show.date or show.startTime depending on your schema)
+
                                 const showDateTime = new Date(show.startTime);
 
                                 // 2. Extract and format the Date (e.g., "Sat, Jul 4, 2026")
@@ -329,7 +334,10 @@ const SeatSelection = () => {
                                         basePrice: totalPrice,
                                         userDetails: {
                                             token: localStorage.getItem('token')?.replace(/^"(.*)"$/, '$1')
-                                        }
+                                        },
+                                        fromSeatSelection: true, // The secure baton
+                                        transactionId,
+                                        sessionTimestamp: Date.now() // Forces a fresh Timer
                                     }
                                 });
                             }}

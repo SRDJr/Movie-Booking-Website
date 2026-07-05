@@ -1,18 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import CheckoutButton from '../components/CheckoutButton';
+import CancellationPolicy from '../components/CancellationPolicy';
 
 const PaymentSummary = () => {
     const navigate = useNavigate();
     const location = useLocation();
-
+    const { showId } = useParams();
     // 1. EXTRACT VARIABLES
     const {
         showDetails,
         selectedSeats,
         basePrice,
-        userDetails
+        userDetails,
+        fromSeatSelection,
+        transactionId,
+        sessionTimestamp
     } = location.state || {};
+
+    useEffect(() => {
+        // KICKOUT RULE: Verify the session storage key matches the state key
+        const activeTxn = sessionStorage.getItem('active_checkout');
+
+        if (!fromSeatSelection || !transactionId || transactionId !== activeTxn) {
+            navigate(`/seat-selection/${showId}`, { replace: true });
+            return;
+        }
+    }, [fromSeatSelection, transactionId, navigate, showId]);
 
     // 2. STATE DECLARATIONS
     const [isPolicyOpen, setIsPolicyOpen] = useState(false);
@@ -21,21 +35,53 @@ const PaymentSummary = () => {
     const [isExpired, setIsExpired] = useState(false); // New state to trigger the fallback UI
 
     // 3. PERSISTENT TIMER LOGIC
+    // useEffect(() => {
+    //     if (!showDetails?._id) return; // Safety check
+
+    //     // Create a unique storage key for this specific booking session
+    //     const timerKey = `booking_timer_${showDetails._id}`;
+    //     let expiryTime = sessionStorage.getItem(timerKey);
+
+    //     if (!expiryTime) {
+    //         // First time landing on this page: Set expiry to exactly 5 minutes from now
+    //         expiryTime = Date.now() + 5 * 60 * 1000;
+    //         sessionStorage.setItem(timerKey, expiryTime);
+    //     }
+
+    //     // 1. Declare the variable up here so the function can see it
+    //     let intervalId;
+
+    //     const updateTimer = () => {
+    //         const now = Date.now();
+    //         const remainingSeconds = Math.max(0, Math.floor((expiryTime - now) / 1000));
+
+    //         setTimeLeft(remainingSeconds);
+
+    //         if (remainingSeconds === 0) {
+    //             setIsExpired(true);
+    //             sessionStorage.removeItem(timerKey);
+
+    //             // 2. Safely check if it exists before clearing
+    //             if (intervalId) clearInterval(intervalId);
+    //         }
+    //     };
+
+    //     // Run immediately, then check every second
+    //     updateTimer();
+
+    //     // 3. Assign the setInterval to the variable we declared earlier
+    //     intervalId = setInterval(updateTimer, 1000);
+
+    //     return () => clearInterval(intervalId);
+    // }, [showDetails]);
+
     useEffect(() => {
-        if (!showDetails?._id) return; // Safety check
+        // Safety check: Ensure we have a timestamp
+        if (!sessionTimestamp) return; 
 
-        // Create a unique storage key for this specific booking session
-        const timerKey = `booking_timer_${showDetails._id}`;
-        let expiryTime = sessionStorage.getItem(timerKey);
-
-        if (!expiryTime) {
-            // First time landing on this page: Set expiry to exactly 5 minutes from now
-            expiryTime = Date.now() + 5 * 60 * 1000;
-            sessionStorage.setItem(timerKey, expiryTime);
-        }
-
-        // 1. Declare the variable up here so the function can see it
-        let intervalId; 
+        // The expiry time is exactly 5 minutes from the millisecond they clicked "Proceed"
+        const expiryTime = sessionTimestamp + (5 * 60 * 1000);
+        let intervalId;
 
         const updateTimer = () => {
             const now = Date.now();
@@ -44,22 +90,21 @@ const PaymentSummary = () => {
             setTimeLeft(remainingSeconds);
 
             if (remainingSeconds === 0) {
-                setIsExpired(true); 
-                sessionStorage.removeItem(timerKey); 
-                
-                // 2. Safely check if it exists before clearing
-                if (intervalId) clearInterval(intervalId); 
+                setIsExpired(true);
+                if (intervalId) clearInterval(intervalId);
             }
         };
 
-        // Run immediately, then check every second
+        // Run immediately to prevent the 1-second lag
         updateTimer();
-        
-        // 3. Assign the setInterval to the variable we declared earlier
+
+        // Check every second
         intervalId = setInterval(updateTimer, 1000);
 
+        // Cleanup on unmount
         return () => clearInterval(intervalId);
-    }, [showDetails]);
+        
+    }, [sessionTimestamp]); 
 
     // 4. THE SAFETY NET (Now includes the expiration check)
     if (!showDetails || !selectedSeats || !Array.isArray(selectedSeats) || isExpired) {
@@ -102,11 +147,25 @@ const PaymentSummary = () => {
     const donationAmount = isDonating ? 2 : 0;
     const finalTotal = Math.round(subTotal + razorpayFee + razorpayGST) + donationAmount;
 
+    // Urgency
+    const isOneMinuteLeft = timeLeft <= 60;
+    const isThirtySecondsLeft = timeLeft <= 30;
+
+    // Switch from light red to solid alert red at 1 minute
+    const bannerClasses = isOneMinuteLeft
+        ? "bg-red-600 text-white text-center py-2 font-bold text-sm shadow-md transition-colors duration-500"
+        : "bg-red-50 text-red-600 text-center py-2 font-semibold text-sm shadow-sm transition-colors duration-500";
+
+    // Add the heartbeat zoom at 30 seconds
+    const timerClasses = isThirtySecondsLeft
+        ? "animate-timer-zoom inline-block font-extrabold"
+        : "inline-block";
+
     return (
-        <div className="min-h-screen bg-gray-50 pb-24">
+        <div className="min-h-screen bg-gray-50 pb-48">
             {/* Top Warning/Timer Bar */}
-            <div className="bg-red-50 text-red-600 text-center py-2 font-semibold text-sm shadow-sm">
-                Please complete your payment within {formatTime(timeLeft)}
+            <div className={bannerClasses}>
+                Please complete your payment within <span className={timerClasses}>{formatTime(timeLeft)}</span>
             </div>
 
             <div className="max-w-3xl mx-auto p-4 mt-4 space-y-6">
@@ -181,29 +240,26 @@ const PaymentSummary = () => {
                 </div>
 
                 {/* ACCORDION: Cancellation Policy in PaymentSummary.jsx */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <button
-                        onClick={() => setIsPolicyOpen(!isPolicyOpen)}
-                        className="w-full p-4 text-left flex justify-between items-center focus:outline-none hover:bg-gray-50 transition-colors"
-                    >
-                        <span className="font-semibold text-gray-800">Cancellation Policy</span>
-                        <span className="text-gray-500 text-xl">{isPolicyOpen ? '−' : '+'}</span>
-                    </button>
-
-                    {isPolicyOpen && (
-                        <div className="p-4 pt-0 text-sm text-gray-600 border-t border-gray-100 space-y-2">
-                            <p>• Cancellations are not permitted less than 1 hour before the showtime.</p>
-                            <p>• <span className="font-semibold">48+ hours before show:</span> 75% of Base Price refunded.</p>
-                            <p>• <span className="font-semibold">12 - 48 hours before show:</span> 50% of Base Price refunded.</p>
-                            <p>• <span className="font-semibold">1 - 12 hours before show:</span> 25% of Base Price refunded.</p>
-                            <p className="text-red-500 mt-2 text-xs font-semibold">• Note: Platform convenience fees and taxes are strictly non-refundable.</p>
-                        </div>
-                    )}
-                </div>
+                <CancellationPolicy />
             </div>
 
             {/* FIXED BOTTOM BAR */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-4 px-6 z-50">
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-md">
+                    <div className="flex">
+                        <div className="flex-shrink-0">
+                            {/* Info Icon SVG here */}
+                        </div>
+                        <div className="ml-3">
+                            <p className="text-sm text-blue-700">
+                                <strong>Important:</strong> Please complete your payment before the timer expires. If the session times out, your seats will be released.
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">
+                                *In the event of a late payment capture, a refund will be auto-issued, excluding standard gateway processing fees.
+                            </p>
+                        </div>
+                    </div>
+                </div>
                 <div className="max-w-3xl mx-auto flex justify-between items-center">
                     <div className="flex flex-col">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Amount</span>

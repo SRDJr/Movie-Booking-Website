@@ -178,7 +178,7 @@ export const cancelBooking = async (req, res) => {
     if (booking.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: 'Unauthorized action' });
     }
-    if (booking.status === 'cancelled') {
+    if (booking.status === 'Cancelled') {
       return res.status(400).json({ message: 'Booking is already cancelled' });
     }
 
@@ -209,10 +209,16 @@ export const cancelBooking = async (req, res) => {
       refundPercentage = 0.25;
     }
 
+    const payment = await razorpayInstance.payments.fetch(booking.paymentId);
+    const paidAmountInPaise = payment.amount;
     const BASE_PRICE_DIVISOR = 1.0839924;
-    const basePriceInRupees = Math.round(booking.totalAmount / BASE_PRICE_DIVISOR);
-    const refundAmountInRupees = basePriceInRupees * refundPercentage;
-    const refundAmountInPaise = Math.round(refundAmountInRupees * 100);
+    const basePriceInPaise = Math.round(paidAmountInPaise / BASE_PRICE_DIVISOR);
+    const calculatedRefundInPaise = Math.round(basePriceInPaise * refundPercentage);
+
+    // Check if a previous test already refunded this!
+    const amountAlreadyRefunded = payment.amount_refunded || 0;
+    const availableToRefund = paidAmountInPaise - amountAlreadyRefunded;
+    const refundAmountInPaise = Math.min(calculatedRefundInPaise, availableToRefund);
 
     // 4. Initiate Razorpay Refund (External API call)
     let refund;
@@ -226,10 +232,11 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
+    const refundAmountInRupees = refundAmountInPaise / 100;
     // 5. Update Database safely using a Transaction
     await session.withTransaction(async () => {
       // Mark booking as cancelled
-      booking.status = 'cancelled';
+      booking.status = 'Cancelled';
       if (refund) {
         booking.refundId = refund.id;
         booking.refundAmount = refundAmountInRupees;
@@ -269,7 +276,22 @@ export const cancelBooking = async (req, res) => {
 // @access  Private
 export const getMyBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const bookings = await Booking.find({ user: req.user._id })
+      .populate({
+        path: 'show',
+        populate: [
+          { 
+            path: 'movie', 
+            select: 'title posterUrl' // Only fetch what we need to save bandwidth
+          },
+          { 
+            path: 'theater', 
+            select: 'name city address location' // Fetching location details
+          }
+        ]
+      })
+      .sort({ createdAt: -1 });
+      
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: error.message });
