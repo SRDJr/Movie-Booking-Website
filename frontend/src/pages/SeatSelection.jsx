@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 import ProceedButton from '../components/ProceedButton';
+import { useAuth } from '../context/AuthContext';
 
 const SeatSelection = () => {
     const { showId } = useParams();
@@ -12,10 +13,12 @@ const SeatSelection = () => {
     const [show, setShow] = useState(null);
     const [seats, setSeats] = useState([]);
     const [socket, setSocket] = useState(null);
-    const [currentUserId, setCurrentUserId] = useState(null);
+    const { user, isAdmin } = useAuth();
 
     const [maxRows, setMaxRows] = useState(0);
     const [maxCols, setMaxCols] = useState(0);
+    
+    const currentUserId = user?._id || user?.id || null;
 
     // 1. Fetch Show Details
     useEffect(() => {
@@ -48,13 +51,6 @@ const SeatSelection = () => {
         if (!rawToken) return;
 
         const token = rawToken.replace(/^"(.*)"$/, '$1');
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setCurrentUserId(payload.id || payload._id);
-        } catch (e) {
-            console.error("Invalid token format");
-        }
 
         // THE FIX: Strip "/api" from the environment variable to ensure we connect to the root namespace
         let socketUrl = import.meta.env.VITE_SOCKET_URL;
@@ -112,8 +108,16 @@ const SeatSelection = () => {
         const token = localStorage.getItem('token');
 
         // Feature: Graceful message for non-logged in users
-        if (!token) {
+        if (!user) {
             toast.warning('Please login to select seats and book movies.', {
+                position: "top-center"
+            });
+            return;
+        }
+
+        // Block admins from interacting with seats
+        if (isAdmin) {
+            toast.error('Admin accounts cannot book tickets. Please use a regular account.', {
                 position: "top-center"
             });
             return;

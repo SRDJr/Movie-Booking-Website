@@ -16,6 +16,7 @@ import Navbar from './components/layout/Navbar';
 
 // Admin Files
 import AdminRoute from './components/layout/AdminRoute';
+import ProtectedRoute from './components/layout/ProtectedRoute';
 import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
@@ -36,8 +37,8 @@ function App() {
             <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard/></AdminRoute>} />
             <Route path="/movie/:movieId" element={<MovieBooking />} />
             <Route path="/seat-selection/:showId" element={<SeatSelection />} />
-            <Route path="/checkout/:showId" element={<PaymentSummary />} />
-            <Route path="/my-bookings" element={<MyBookings/>}/>
+            <Route path="/checkout/:showId" element={<ProtectedRoute><PaymentSummary /></ProtectedRoute>} />
+            <Route path="/my-bookings" element={<ProtectedRoute><MyBookings/></ProtectedRoute>}/>
             
             {/* Future Routes */}
             {/* <Route path="/movie/:id" element={<MovieDetails />} /> */}
