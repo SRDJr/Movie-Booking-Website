@@ -3,6 +3,7 @@ import Show from '../models/Show.js';
 import crypto from 'crypto';
 import { createBooking } from './bookingController.js';
 import { calculateFinalPrice } from '../utils/finalPriceCalculator.js';
+import { sendBookingEmail } from '../utils/emailServices.js';
 
 // @desc    Create Razorpay Order
 // @route   POST /api/payments/create-order
@@ -111,6 +112,9 @@ export const verifyPaymentSignature = async (req, res) => {
             paymentId: razorpay_payment_id,
             user: req.user // Pass the authenticated user session context
         });
+
+        // Trigger the email asynchronously in the background
+        sendBookingEmail(req.user.name, req.user.email, booking).catch(err => console.error("Email trigger failed:", err));
 
         // 4. Return both verification and booking confirmation to the React client
         return res.status(200).json({
