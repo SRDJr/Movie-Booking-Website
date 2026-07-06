@@ -2,6 +2,7 @@ import Booking from '../models/Booking.js';
 import Show from '../models/Show.js';
 import mongoose from 'mongoose';
 import { razorpayInstance } from '../config/razorpay.js';
+import { sendCancellationEmail } from '../utils/emailServices.js';
 
 // Internal service function that executes the transaction
 export const createBooking = async ({ showId, selectedSeats, amount, paymentId, user }) => {
@@ -257,6 +258,12 @@ export const cancelBooking = async (req, res) => {
       await show.save({ session });
     });
 
+    // Trigger the cancellation email asynchronously in the background
+    sendCancellationEmail(req.user.name, req.user.email, booking, {
+      refundAmount: refundAmountInRupees,
+      refundId: refund?.id
+    }).catch(err => console.error("Cancellation email trigger failed:", err));
+    
     res.status(200).json({
       success: true,
       message: `Booking cancelled successfully. ₹${refundAmountInRupees} will be refunded.`,
@@ -280,18 +287,18 @@ export const getMyBookings = async (req, res) => {
       .populate({
         path: 'show',
         populate: [
-          { 
-            path: 'movie', 
+          {
+            path: 'movie',
             select: 'title posterUrl' // Only fetch what we need to save bandwidth
           },
-          { 
-            path: 'theater', 
+          {
+            path: 'theater',
             select: 'name city address location' // Fetching location details
           }
         ]
       })
       .sort({ createdAt: -1 });
-      
+
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: error.message });
