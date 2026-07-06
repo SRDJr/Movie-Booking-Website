@@ -35,18 +35,23 @@ const Navbar = () => {
           <div className="flex items-center space-x-6">
             {user ? (
               <>
-                {user.role === 'admin' && (
-                  <Link to="/admin/dashboard" className="font-bold text-yellow-400 hover:text-yellow-300">
-                    Dashboard
-                  </Link>
-                )}
                 <span className="font-medium">Welcome, {user.name}</span>
-                <button
-                  onClick={() => navigate('/my-bookings')}
-                  className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:text-blue-600 hover:border-blue-300 px-4 py-2 rounded-md font-medium text-sm transition-all shadow-sm"
-                >
-                  My Bookings
-                </button>
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => navigate('/admin/dashboard')}
+                    className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:text-blue-600 hover:border-blue-300 px-4 py-2 rounded-md font-medium text-sm transition-all shadow-sm"
+                  >
+                    Dashboard
+                  </button>
+                )}
+                {user.role === 'client' && (
+                  <button
+                    onClick={() => navigate('/my-bookings')}
+                    className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:text-blue-600 hover:border-blue-300 px-4 py-2 rounded-md font-medium text-sm transition-all shadow-sm"
+                  >
+                    My Bookings
+                  </button>
+                )}
                 <button
                   onClick={handleLogout}
                   className="bg-red-700 hover:bg-red-800 px-4 py-2 rounded text-sm transition"
