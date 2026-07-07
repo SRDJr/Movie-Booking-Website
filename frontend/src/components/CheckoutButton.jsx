@@ -35,7 +35,7 @@ const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Use process.env.REACT_APP_RAZORPAY_KEY_ID if using Create React App
                 amount: amount.toString(),
                 currency: currency,
-                name: 'CineMatch', // Replace with your actual app name
+                name: 'CineFlix', // Replace with your actual app name
                 description: 'Movie Ticket Booking',
                 order_id: order_id,
 
@@ -120,7 +120,16 @@ const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
 
     return (
         <button
-            onClick={displayRazorpay}
+            // onClick={displayRazorpay}
+            onClick={() => {
+                // 1. Show the pop-up warning
+                const userConfirmed = window.confirm("This is a portfolio project. Please use dummy credentials for testing.");
+
+                // 2. Only proceed if they clicked "OK"
+                if (userConfirmed) {
+                    displayRazorpay();
+                }
+            }}
             disabled={loading || selectedSeats.length === 0}
             className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold shadow-sm hover:bg-green-700 disabled:bg-gray-400 transition-colors active:scale-95"
         >

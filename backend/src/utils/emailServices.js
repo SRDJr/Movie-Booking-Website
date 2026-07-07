@@ -92,7 +92,7 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
 
         // 6. Send the Email
         await transporter.sendMail({
-            from: '"CineMatch" <noreply@cinematch.com>',
+            from: '"CineFlix" <noreply@cineflix.com>',
             to: userEmail,
             subject: `Your Ticket Confirmed: ${booking.showSnapshot.movieTitle}`,
             html: `
@@ -101,7 +101,7 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
                 <p>Please find your M-Ticket attached as a PDF. You can show the QR code at the cinema entrance.</p>
                 <br/>
                 <p>Enjoy the show!</p>
-                <p>The CineMatch Team</p>
+                <p>The CineFlix Team</p>
             `,
             attachments: [
                 {
@@ -119,12 +119,12 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
 export const sendCancellationEmail = async (userName, userEmail, booking, refundData) => {
     try {
         await transporter.sendMail({
-            from: '"CineMatch" <noreply@cinematch.com>',
+            from: '"CineFlix" <noreply@cineflix.com>',
             to: userEmail,
             subject: `Booking Cancelled: ${booking.showSnapshot.movieTitle}`,
             html: `
                 <h3>Cancellation Confirmed</h3>
-                <p>Hi ${userName} </p>
+                <p>Hi ${userName}, </p>
                 <p>Your booking for <strong>${booking.showSnapshot.movieTitle}</strong> (Booking ID: ${booking._id.toString().slice(-6).toUpperCase()}) has been cancelled.</p>
                 
                 <div style="background-color: #f9fafb; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0;">
@@ -136,7 +136,7 @@ export const sendCancellationEmail = async (userName, userEmail, booking, refund
                 <p style="font-size: 14px; color: #6b7280;">Please note that refunds typically take 5-7 business days to reflect in your original payment method.</p>
                 <br/>
                 <p>We hope to see you again soon!</p>
-                <p>The CineMatch Team</p>
+                <p>The CineFlix Team</p>
             `
         });
     } catch (error) {

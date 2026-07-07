@@ -81,7 +81,7 @@ const Home = () => {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
 
           <div className="text-center md:text-left">
-            <h1 className="text-4xl font-bold mb-2">Welcome to CineMatch</h1>
+            <h1 className="text-4xl font-bold mb-2">Welcome to CineFlix</h1>
             <p className="text-blue-200 text-lg">Discover the best movies playing in your city.</p>
           </div>
 

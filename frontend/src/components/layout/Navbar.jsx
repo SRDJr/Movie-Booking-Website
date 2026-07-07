@@ -28,7 +28,7 @@ const Navbar = () => {
         <div className="container mx-auto flex justify-between items-center">
           {/* Logo */}
           <Link to="/" className="text-2xl font-bold flex items-center gap-2">
-            🎟️ CineMatch
+            🎟️ CineFlix
           </Link>
 
           {/* Auth Links */}
