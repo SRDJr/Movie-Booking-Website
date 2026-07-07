@@ -20,11 +20,15 @@ connectDB();
 const app = express();
 const httpServer = createServer(app); // Wrap Express
 
-// Configure Socket.io with CORS
+// Configure Socket.io with production-ready CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Allow all origins for now (Restrict to your React frontend URL in production)
-    methods: ["GET", "POST"]
+    origin: [
+      "http://localhost:5173",                 // Keep this for local development testing
+      "https://your-new-vercel-url.vercel.app" // Add your actual live Vercel URL here (without a trailing slash)
+    ],
+    methods: ["GET", "POST"],
+    credentials: true                          // Allows secure session cookies/headers to pass if needed
   }
 });
 
