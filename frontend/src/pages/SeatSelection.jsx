@@ -17,10 +17,9 @@ const SeatSelection = () => {
 
     const [maxRows, setMaxRows] = useState(0);
     const [maxCols, setMaxCols] = useState(0);
-    
+
     const currentUserId = user?._id || user?.id || null;
 
-    // 1. Fetch Show Details
     useEffect(() => {
         const fetchShowDetails = async () => {
             try {
@@ -45,18 +44,15 @@ const SeatSelection = () => {
         fetchShowDetails();
     }, [showId]);
 
-    // 2. Initialize WebSocket Connection
     useEffect(() => {
         const rawToken = localStorage.getItem('token');
         if (!rawToken) return;
 
         const token = rawToken.replace(/^"(.*)"$/, '$1');
 
-        // THE FIX: Strip "/api" from the environment variable to ensure we connect to the root namespace
         let socketUrl = import.meta.env.VITE_SOCKET_URL;
         socketUrl = socketUrl.replace(/\/api$/, '');
 
-        // Connect to Socket
         const newSocket = io(socketUrl, {
             auth: { token },
             transports: ['websocket']
@@ -64,10 +60,8 @@ const SeatSelection = () => {
 
         setSocket(newSocket);
 
-        // --- NEW DEBUG LISTENERS ---
         newSocket.on('connect', () => {
             console.log('✅ FRONTEND: Socket Connected!', newSocket.id);
-            // Only join the room AFTER we are successfully connected
             newSocket.emit('join_show', showId);
         });
 
@@ -78,7 +72,6 @@ const SeatSelection = () => {
         newSocket.on('unauthorized', (data) => {
             console.error('🚫 FRONTEND UNAUTHORIZED:', data.message);
         });
-        // ---------------------------
 
         newSocket.on('seat_updated', (updatedSeat) => {
             setSeats((prevSeats) =>
@@ -93,7 +86,6 @@ const SeatSelection = () => {
         return () => newSocket.disconnect();
     }, [showId]);
 
-    // Helper function to convert 0-indexed rows into Base-26 alphabetical labels (A, B... Z, AA, AB...)
     const getRowLabel = (rowIndex) => {
         let label = '';
         let n = rowIndex;
@@ -103,11 +95,8 @@ const SeatSelection = () => {
         }
         return label;
     };
-    // 3. Handle Seat Clicks (With Authentication Check)
-    const handleSeatClick = (seat) => {
-        const token = localStorage.getItem('token');
 
-        // Feature: Graceful message for non-logged in users
+    const handleSeatClick = (seat) => {
         if (!user) {
             toast.warning('Please login to select seats and book movies.', {
                 position: "top-center"
@@ -115,7 +104,6 @@ const SeatSelection = () => {
             return;
         }
 
-        // Block admins from interacting with seats
         if (isAdmin) {
             toast.error('Admin accounts cannot book tickets. Please use a regular account.', {
                 position: "top-center"
@@ -130,12 +118,10 @@ const SeatSelection = () => {
 
         const myLockedSeats = seats.filter(s => s.status === 'locked' && s.lockedBy === currentUserId);
 
-        console.log("Seat clicked:", seat.status);
-
         if (seat.status === 'available') {
             if (myLockedSeats.length >= 6) {
                 toast.warning('You can only select up to 6 seats per transaction.');
-                return; // Stop the execution here
+                return;
             }
             socket.emit('request_seat_lock', { showId, row: seat.row, col: seat.col });
         } else if (seat.status === 'locked' && seat.lockedBy === currentUserId) {
@@ -147,7 +133,6 @@ const SeatSelection = () => {
         }
     };
 
-    // 4. Seat Styling Logic
     const getSeatStyling = (seat) => {
         if (!seat) return 'bg-transparent border border-transparent cursor-default';
 
@@ -183,7 +168,6 @@ const SeatSelection = () => {
 
     const gridMatrix = Array.from({ length: maxRows }, () => Array(maxCols).fill(null));
     seats.forEach(seat => {
-        // Safety check to ensure the row and col exist before placing
         if (seat.row !== undefined && seat.col !== undefined) {
             gridMatrix[seat.row][seat.col] = seat;
         }
@@ -192,91 +176,109 @@ const SeatSelection = () => {
     if (!show) return <div className="text-center py-20 animate-pulse text-lg">Loading Seat Map...</div>;
 
     return (
-        // Added padding-bottom (pb-32) to ensure the grid doesn't hide behind the fixed footer
-        <div className="relative min-h-screen pb-40 bg-white">
+        <div className="relative min-h-screen pb-56 sm:pb-40 bg-white">
 
             {/* MAIN SEAT GRID AREA */}
-            <div className="max-w-7xl mx-auto py-8 px-4">
+            <div className="max-w-7xl mx-auto py-4 sm:py-8 px-4">
 
-                <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-extrabold text-gray-900">{show.movie?.title}</h2>
-                    <span className={`font-bold px-4 py-2 rounded-full text-sm border shadow-sm ${availabilityPercentage > 50 ? 'bg-green-50 text-green-700 border-green-200' :
+                {/* FIX 3: Reverted to flex-row so badge stays strictly on the right side */}
+                <div className="flex justify-between items-center mb-6 sm:mb-8 gap-4">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight truncate">{show.movie?.title}</h2>
+                    <span className={`flex-shrink-0 font-bold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm border shadow-sm ${availabilityPercentage > 50 ? 'bg-green-50 text-green-700 border-green-200' :
                         availabilityPercentage > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'
                         }`}>
                         {availabilityPercentage}% Available
                     </span>
                 </div>
 
-                <div className="border border-gray-200 shadow-sm p-6 sm:p-10 rounded-2xl overflow-x-auto text-center bg-gray-50 touch-none">
-                    <div className="inline-block w-4/5 max-w-2xl h-10 bg-gradient-to-b from-gray-300 to-gray-200 mb-16 rounded-b-[40px] mx-auto flex items-center justify-center text-sm font-bold text-gray-500 tracking-[0.3em] shadow-inner border border-gray-300">
-                        SCREEN THIS WAY
-                    </div>
+                {/* FIX 4: Grid Scrolling. Added a min-w-[600px] wrapper to prevent seats from squishing */}
+                <div className="border border-gray-200 shadow-sm p-4 sm:p-10 rounded-2xl overflow-x-auto text-center bg-gray-50">
+                    <div className="min-w-[600px] sm:min-w-0 inline-block w-full">
+                        <div className="inline-block w-4/5 max-w-2xl h-8 sm:h-10 bg-gradient-to-b from-gray-300 to-gray-200 mb-10 sm:mb-16 rounded-b-[40px] mx-auto flex items-center justify-center text-[10px] sm:text-sm font-bold text-gray-500 tracking-[0.2em] sm:tracking-[0.3em] shadow-inner border border-gray-300">
+                            SCREEN THIS WAY
+                        </div>
 
-                    <div
-                        className="inline-grid gap-2 p-6 bg-white rounded-xl border shadow-sm"
-                        style={{ gridTemplateColumns: `repeat(${maxCols}, minmax(0, 1fr))` }}
-                    >
-                        {gridMatrix.map((row, rIdx) => (
-                            row.map((seat, cIdx) => (
-                                <div
-                                    key={`${rIdx}-${cIdx}`}
-                                    onClick={() => seat && handleSeatClick(seat)}
-                                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-t-lg border ${getSeatStyling(seat)} flex items-center justify-center`}
-                                    title={seat ? `Row ${getRowLabel(rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
-                                >
-                                    {/* Optional: Add a subtle seat number inside the box for better UX */}
-                                    {seat && seat.status === 'available' && (
-                                        <span className="text-[0.55rem] font-bold text-white opacity-40">
-                                            {cIdx + 1}
-                                        </span>
-                                    )}
-                                </div>
-                            ))
-                        ))}
+                        <div
+                            className="inline-grid gap-y-2 gap-x-9 sm:gap-3 p-4 sm:p-6 bg-white rounded-xl border shadow-sm mx-auto"
+                            style={{ gridTemplateColumns: `repeat(${maxCols}, minmax(0, 1fr))` }}
+                        >
+                            {gridMatrix.map((row, rIdx) => (
+                                row.map((seat, cIdx) => (
+                                    <div
+                                        key={`${rIdx}-${cIdx}`}
+                                        onClick={() => seat && handleSeatClick(seat)}
+                                        // Removed the shrinking! Seats will always be 10x10 with consistent spacing
+                                        className={`w-7 h-7 sm:w-10 sm:h-10 rounded-t flex-shrink-0 border ${getSeatStyling(seat)} flex items-center justify-center`}
+                                        title={seat ? `Row ${getRowLabel(rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
+                                    >
+                                        {seat && seat.status === 'available' && (
+                                            <span className="text-[0.55rem] font-bold text-white opacity-40">
+                                                {cIdx + 1}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))
+                            ))}
+                        </div>
                     </div>
                 </div>
+
+                <p className="text-center text-xs text-gray-400 mt-3 md:hidden">
+                    ← Swipe grid to see more seats →
+                </p>
             </div>
 
-            {/* FIXED BOTTOM BAR (Legend & Checkout) */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-50 p-4 sm:p-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            {/* FIXED BOTTOM BAR */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-50 p-3 sm:p-6">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 sm:gap-6">
 
                     {/* Horizontal Legend */}
-                    <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm font-medium text-gray-600">
-                        <span className="text-gray-400 font-bold uppercase tracking-wider mr-2"></span>
+                    <div className="grid grid-cols-3 gap-y-3 gap-x-2 md:flex md:flex-wrap md:items-center md:gap-4 text-[11px] sm:text-sm font-medium text-gray-600 w-full md:w-auto px-10 md:px-0">
+
+                        {/* Hidden on mobile so it doesn't break the grid, visible on desktop */}
+                        <span className="hidden md:block text-gray-400 font-bold uppercase tracking-wider mr-2"></span>
+
                         {show.pricing?.Platinum && (
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-t bg-blue-500 border border-blue-600"></div>
-                                <span>Platinum (₹{show.pricing.Platinum})</span>
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-blue-500 border border-blue-600 flex-shrink-0"></div>
+                                <span className="truncate">Platinum (₹{show.pricing.Platinum})</span>
                             </div>
                         )}
+
                         {show.pricing?.Gold && (
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-t bg-yellow-400 border border-yellow-500"></div>
-                                <span>Gold (₹{show.pricing.Gold})</span>
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-yellow-400 border border-yellow-500 flex-shrink-0"></div>
+                                <span className="truncate">Gold (₹{show.pricing.Gold})</span>
                             </div>
                         )}
+
                         {show.pricing?.Diamond && (
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-t bg-purple-500 border border-purple-600"></div>
-                                <span>Diamond (₹{show.pricing.Diamond})</span>
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-purple-500 border border-purple-600 flex-shrink-0"></div>
+                                <span className="truncate">Diamond (₹{show.pricing.Diamond})</span>
                             </div>
                         )}
+
+                        {/* Untouched Divider */}
                         <div className="h-4 w-px bg-gray-300 hidden md:block mx-2"></div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-t bg-green-500 border border-green-600"></div>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-green-500 border border-green-600 flex-shrink-0"></div>
                             <span>Selected</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-t bg-gray-300 border border-gray-400"></div>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-gray-300 border border-gray-400 flex-shrink-0"></div>
                             <span>Locked</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-t bg-gray-700 border border-gray-800"></div>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-t bg-gray-700 border border-gray-800 flex-shrink-0"></div>
                             <span>Sold</span>
                         </div>
                     </div>
 
+                    {/* FIX 1: Checkout text back to "Selected Seats" and forcing right alignment */}
                     {/* Checkout Controls */}
                     <div className="flex items-center gap-6 w-full md:w-auto">
                         <div className="flex flex-col text-right flex-1 md:flex-none">
@@ -347,7 +349,6 @@ const SeatSelection = () => {
                             }}
                         />
                     </div>
-
                 </div>
             </div>
         </div>

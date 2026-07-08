@@ -134,15 +134,20 @@ const MyBookings = () => {
                                             </span>
                                         </div>
 
-                                        {/* TWO-COLUMN MIDDLE SECTION */}
-                                        <div className="flex justify-between items-center mb-4">
+                                        {/* FULL-WIDTH VENUE INFO */}
+                                        <div className="mb-4">
+                                            <p className="text-gray-800 font-bold text-lg">{theaterName}</p>
+                                            <p className="text-sm text-gray-500 leading-relaxed">{theaterAddress}</p>
+                                        </div>
 
-                                            {/* Left Column: Ticket Details */}
-                                            <div className="flex-grow pr-4">
-                                                <p className="text-gray-600 font-medium">{theaterName}</p>
-                                                <p className="text-sm text-gray-500 mb-4">{theaterAddress}</p>
+                                        {/* TWO-COLUMN DETAILS & TICKET SECTION */}
+                                        <div className="flex justify-between items-start mb-4">
 
-                                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                            {/* Left Column: Date, Screen, Seats */}
+                                            <div className="flex-grow pr-3 sm:pr-4">
+
+                                                {/* Date & Screen */}
+                                                <div className="flex flex-col sm:grid sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
                                                     <div>
                                                         <p className="text-xs text-gray-400 uppercase tracking-wider">Date & Time</p>
                                                         <p className="font-semibold text-gray-800">
@@ -155,6 +160,7 @@ const MyBookings = () => {
                                                     </div>
                                                 </div>
 
+                                                {/* Seats */}
                                                 <div>
                                                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Seats</p>
                                                     <div className="flex flex-wrap gap-2">
@@ -169,11 +175,11 @@ const MyBookings = () => {
 
                                             {/* Right Column: QR Code M-Ticket */}
                                             {activeTab !== 'cancelled' && (
-                                                <div className="flex-shrink-0 flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 hidden sm:flex">
-                                                    <div className="bg-white p-2 rounded-lg shadow-sm mb-2">
+                                                <div className="flex-shrink-0 flex flex-col items-center justify-center p-2 sm:p-3 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 mt-1 sm:mt-0">
+                                                    <div className="bg-white p-1.5 sm:p-2 rounded-lg shadow-sm mb-1 sm:mb-2">
                                                         <QRCodeSVG
                                                             value={qrHash}
-                                                            size={80}
+                                                            className="w-16 h-16 sm:w-20 sm:h-20"
                                                             level="L"
                                                             includeMargin={false}
                                                         />

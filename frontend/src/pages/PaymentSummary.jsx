@@ -77,7 +77,7 @@ const PaymentSummary = () => {
 
     useEffect(() => {
         // Safety check: Ensure we have a timestamp
-        if (!sessionTimestamp) return; 
+        if (!sessionTimestamp) return;
 
         // The expiry time is exactly 5 minutes from the millisecond they clicked "Proceed"
         const expiryTime = sessionTimestamp + (5 * 60 * 1000);
@@ -103,8 +103,8 @@ const PaymentSummary = () => {
 
         // Cleanup on unmount
         return () => clearInterval(intervalId);
-        
-    }, [sessionTimestamp]); 
+
+    }, [sessionTimestamp]);
 
     // 4. THE SAFETY NET (Now includes the expiration check)
     if (!showDetails || !selectedSeats || !Array.isArray(selectedSeats) || isExpired) {
@@ -162,7 +162,7 @@ const PaymentSummary = () => {
         : "inline-block";
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-48">
+        <div className="min-h-screen bg-gray-50 pb-64 md:pd-48">
             {/* Top Warning/Timer Bar */}
             <div className={bannerClasses}>
                 Please complete your payment within <span className={timerClasses}>{formatTime(timeLeft)}</span>
