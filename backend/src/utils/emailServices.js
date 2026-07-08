@@ -125,7 +125,7 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
         `;
 
         const attachment = {
-            filename: `${booking.showSnapshot.movieTitle.replace(/\s+/g, '_')}_Ticket.pdf`,
+            filename: `${booking.showSnapshot.movieTitle.replace(/\s+/g, '_')}(${booking._id.toString().slice(-6).toUpperCase()})_Ticket.pdf`,
             content: pdfBuffer // The helper function will automatically base64 encode this
         };
 
