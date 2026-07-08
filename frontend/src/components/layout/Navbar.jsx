@@ -8,7 +8,7 @@ const Navbar = () => {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   // 1. Create a reference to attach to our mobile menu
   const mobileMenuRef = useRef(null);
 
@@ -25,7 +25,7 @@ const Navbar = () => {
     if (isMobileMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       // Also handle touch events for better mobile responsiveness
-      document.addEventListener('touchstart', handleClickOutside); 
+      document.addEventListener('touchstart', handleClickOutside);
     }
 
     // Cleanup function
@@ -41,10 +41,10 @@ const Navbar = () => {
   };
 
   const confirmAndLogout = () => {
-    setShowLogoutConfirm(false); 
-    sessionStorage.clear();      
-    logout();                    
-    navigate('/login');          
+    setShowLogoutConfirm(false);
+    sessionStorage.clear();
+    logout();
+    navigate('/login');
   };
 
   const closeMobileMenu = () => {
@@ -55,7 +55,7 @@ const Navbar = () => {
     <>
       <nav className="bg-primary text-white p-4 shadow-md sticky top-0 z-50 relative">
         <div className="container mx-auto flex justify-between items-center">
-          
+
           <Link to="/" onClick={closeMobileMenu} className="text-2xl font-bold flex items-center gap-2">
             🎟️ CineFlix
           </Link>
@@ -120,8 +120,8 @@ const Navbar = () => {
               </div>
             ) : (
               <>
-                <button 
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                   className="text-white hover:text-gray-300 focus:outline-none p-1"
                 >
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,7 +140,7 @@ const Navbar = () => {
                       <span className="text-sm font-medium">Welcome,</span>
                       <p className="font-bold text-primary truncate">{user.name}</p>
                     </div>
-                    
+
                     <div className="flex flex-col p-2">
                       {user.role === 'admin' && (
                         <button
@@ -158,9 +158,9 @@ const Navbar = () => {
                           My Bookings
                         </button>
                       )}
-                      
+
                       <div className="h-px bg-gray-100 my-1 mx-2"></div>
-                      
+
                       <button
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -182,7 +182,7 @@ const Navbar = () => {
           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 transform transition-all text-left">
             <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Logout</h3>
             <p className="text-gray-600 mb-6 text-sm">
-              Are you sure you want to log out? Any unbooked seats in your cart will be released.
+              {user.role === 'client' ? "Are you sure you want to log out? Any unbooked seats in your cart will be released." : "Are you sure you want to log out? Any unsaved changes will be lost."}
             </p>
 
             <div className="flex justify-end gap-3">

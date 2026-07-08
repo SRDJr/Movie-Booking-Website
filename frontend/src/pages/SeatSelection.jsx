@@ -193,14 +193,14 @@ const SeatSelection = () => {
 
                 {/* FIX 4: Grid Scrolling. Added a min-w-[600px] wrapper to prevent seats from squishing */}
                 <div className="border border-gray-200 shadow-sm p-4 sm:p-10 rounded-2xl overflow-x-auto text-center bg-gray-50">
-                    <div className="min-w-[600px] sm:min-w-0 inline-block w-full">
+                    <div className="min-w-[600px] sm:min-w-0 inline-block w-max min-w-full">
                         <div className="inline-block w-4/5 max-w-2xl h-8 sm:h-10 bg-gradient-to-b from-gray-300 to-gray-200 mb-10 sm:mb-16 rounded-b-[40px] mx-auto flex items-center justify-center text-[10px] sm:text-sm font-bold text-gray-500 tracking-[0.2em] sm:tracking-[0.3em] shadow-inner border border-gray-300">
                             SCREEN THIS WAY
                         </div>
 
                         <div
-                            className="inline-grid gap-y-2 gap-x-9 sm:gap-3 p-4 sm:p-6 bg-white rounded-xl border shadow-sm mx-auto"
-                            style={{ gridTemplateColumns: `repeat(${maxCols}, minmax(0, 1fr))` }}
+                            className="inline-grid gap-y-2 gap-x-2 sm:gap-3 p-4 sm:p-6 bg-white rounded-xl border shadow-sm mx-auto w-max"
+                            style={{ gridTemplateColumns: `repeat(${maxCols}, max-content)` }}
                         >
                             {gridMatrix.map((row, rIdx) => (
                                 row.map((seat, cIdx) => (
