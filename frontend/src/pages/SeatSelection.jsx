@@ -212,7 +212,7 @@ const SeatSelection = () => {
                                         title={seat ? `Row ${getRowLabel(rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
                                     >
                                         {seat && seat.status === 'available' && (
-                                            <span className="text-[0.55rem] font-bold text-white opacity-40">
+                                            <span className="text-[0.55rem] font-bold text-white opacity-100">
                                                 {cIdx + 1}
                                             </span>
                                         )}
