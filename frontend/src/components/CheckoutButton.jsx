@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
     const [loading, setLoading] = useState(false);
+    const [showTestWarning, setShowTestWarning] = useState(false);
     const navigate = useNavigate();
 
     const displayRazorpay = async () => {
@@ -119,22 +120,73 @@ const CheckoutButton = ({ showId, selectedSeats, userDetails, isDonating }) => {
     };
 
     return (
-        <button
-            // onClick={displayRazorpay}
-            onClick={() => {
-                // 1. Show the pop-up warning
-                const userConfirmed = window.confirm("This is a portfolio project. Please use dummy credentials for testing.");
+        <>
+            <button
+                onClick={() => setShowTestWarning(true)}
+                disabled={loading || selectedSeats.length === 0}
+                className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold shadow-sm hover:bg-green-700 disabled:bg-gray-400 transition-colors active:scale-95"
+            >
+                {loading ? 'Processing...' : 'Pay Now'}
+            </button>
+            {/* RAZORPAY TEST MODE WARNING MODAL */}
+            {
+                showTestWarning && (
+                    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full transform transition-all text-left animate-fade-in-down">
 
-                // 2. Only proceed if they clicked "OK"
-                if (userConfirmed) {
-                    displayRazorpay();
-                }
-            }}
-            disabled={loading || selectedSeats.length === 0}
-            className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold shadow-sm hover:bg-green-700 disabled:bg-gray-400 transition-colors active:scale-95"
-        >
-            {loading ? 'Processing...' : 'Pay Now'}
-        </button>
+                            <div className="flex items-center gap-3 mb-3">
+                                <span className="text-2xl">⚠️</span>
+                                <h3 className="text-xl font-extrabold text-gray-900">Test Environment</h3>
+                            </div>
+
+                            <p className="text-gray-600 mb-5 text-sm sm:text-base leading-relaxed">
+                                This is a portfolio project running in Razorpay's test mode. Please do not enter real banking information.
+                            </p>
+
+                            {/* Premium Dummy Data Box */}
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                                <span className="text-[10px] sm:text-xs text-blue-600 font-bold uppercase tracking-widest mb-1.5 block">
+                                    Use Dummy Credentials
+                                </span>
+                                <p className="font-mono text-sm sm:text-base text-gray-800 font-bold tracking-widest mb-1">
+                                    4111 1111 1111 1111
+                                </p>
+                                <div className="flex gap-6">
+                                    <p className="text-xs text-gray-500 font-medium">CVV: <span className="font-mono font-bold text-gray-700">111</span></p>
+                                    <p className="text-xs text-gray-500 font-medium">Expiry: <span className="font-mono font-bold text-gray-700">Any future date</span></p>
+                                </div>
+                            </div>
+
+                            {/* Clarification Note */}
+                            <p className="text-[10px] sm:text-xs text-gray-400 text-center italic mb-6">
+                                *These are just example test credentials. You may use any valid Razorpay test card or may proceed with other options.
+                            </p>
+
+                            {/* Action Buttons */}
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setShowTestWarning(false)}
+                                    className="px-5 py-2.5 text-gray-700 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm sm:text-base"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowTestWarning(false);
+                                        displayRazorpay();
+                                    }}
+                                    className="px-5 py-2.5 text-white font-bold bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors text-sm sm:text-base"
+                                >
+                                    Proceed to Test Payment
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                )
+            }
+        </>
     );
 };
 
