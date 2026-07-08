@@ -5,7 +5,7 @@ import Show from '../models/Show.js';
 import { ucs2 } from 'punycode';
 
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host: 'smtp-relay.brevo.com',
     port: 587,         
     secure: false,     
     requireTLS: true,
@@ -96,7 +96,7 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
 
         // 6. Send the Email
         await transporter.sendMail({
-            from: '"CineFlix" <noreply@cineflix.com>',
+            from: '"CineFlix" <cineflixmoviebooking@gmail.com>',
             to: userEmail,
             subject: `Your Ticket Confirmed: ${booking.showSnapshot.movieTitle}`,
             html: `
@@ -123,7 +123,7 @@ export const sendBookingEmail = async (userName, userEmail, booking) => {
 export const sendCancellationEmail = async (userName, userEmail, booking, refundData) => {
     try {
         await transporter.sendMail({
-            from: '"CineFlix" <noreply@cineflix.com>',
+            from: '"CineFlix" <cineflixmoviebooking@gmail.com>',
             to: userEmail,
             subject: `Booking Cancelled: ${booking.showSnapshot.movieTitle}`,
             html: `
