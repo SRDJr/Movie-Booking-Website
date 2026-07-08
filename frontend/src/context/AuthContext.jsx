@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
     // If token exists, try to fetch user details or just set the token header
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser(); 
+      fetchUser();
     } else {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const { data } = await api.post('/auth/login', { email, password });
-      
+
       localStorage.setItem('token', data.token);
       setToken(data.token);
       toast.success('Login Successful!');
@@ -73,6 +73,12 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = (showToast = true) => {
     localStorage.removeItem('token');
+
+    // Clear Admin Drafts and Tab State
+    localStorage.removeItem('admin_theater_draft');
+    localStorage.removeItem('admin_show_draft');
+    localStorage.removeItem('admin_active_tab');
+    
     setToken(null);
     setUser(null);
     delete api.defaults.headers.common['Authorization'];

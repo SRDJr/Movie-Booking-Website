@@ -2,25 +2,71 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { toast } from 'react-toastify';
 
+// ==========================================
+// REUSABLE CONFIRMATION MODAL COMPONENT
+// ==========================================
+const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText, confirmColor }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up">
+        <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 font-semibold text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 font-bold text-white rounded-md transition shadow-sm ${confirmColor}`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('movies');
+  // 1. Initialize state from localStorage (fallback to 'movies')
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('admin_active_tab') || 'movies';
+  });
+
+  // 2. Auto-save the active tab whenever it changes
+  useEffect(() => {
+    localStorage.setItem('admin_active_tab', activeTab);
+  }, [activeTab]);
+
+  // --- UNIVERSAL MODAL STATE ---
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    confirmText: 'Confirm',
+    confirmColor: 'bg-blue-600'
+  });
+
+  const closeModal = () => setModalConfig((prev) => ({ ...prev, isOpen: false }));
 
   // ==========================================
   // 1. MOVIE IMPORT STATE & LOGIC
   // ==========================================
-
-  // --- MOVIE IMPORT STATE ---
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const MAX_ADMIN_ATTEMPTS = 3;
 
-  // --- MOVIE IMPORT LOGIC ---
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery) return;
-
     setLoading(true);
     try {
       const { data } = await api.get(`/movies/search?query=${searchQuery}`);
@@ -32,7 +78,21 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleImport = async (tmdbId, title) => {
+  const confirmImport = (tmdbId, title) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Import Movie',
+      message: `Are you sure you want to import "${title}" into the database?`,
+      confirmText: 'Import Movie',
+      confirmColor: 'bg-green-600 hover:bg-blue-700',
+      onConfirm: () => {
+        closeModal();
+        executeImport(tmdbId, title);
+      }
+    });
+  };
+
+  const executeImport = async (tmdbId, title) => {
     if (failedAttempts >= MAX_ADMIN_ATTEMPTS) {
       toast.error('Service unavailable. Please come back later.');
       return;
@@ -62,35 +122,39 @@ const AdminDashboard = () => {
   // ==========================================
   // 2. THEATER & SEAT MAP BUILDER STATE & LOGIC
   // ==========================================
-
-  // --- LIMIT CONSTANTS ---
   const DEFAULT_SIZE = 10;
   const MAX_ROWS = 40;
   const MAX_COLS = 40;
-  const MAX_SCREENS = 50; // Max number of screens a single theater can have
+  const MAX_SCREENS = 50;
 
-  // --- STATE ---
-  const [theaterName, setTheaterName] = useState('');
-  const [city, setCity] = useState('');
-  const [address, setAddress] = useState('');
-  const [screenNumber, setScreenNumber] = useState(1);
-  const [screenType, setScreenType] = useState('Standard'); // Dynamic Screen Type
+  // Retrieve initial draft state
+  const getTheaterDraft = () => {
+    const saved = localStorage.getItem('admin_theater_draft');
+    return saved ? JSON.parse(saved) : null;
+  };
+  const theaterDraft = getTheaterDraft();
+
+  const [theaterName, setTheaterName] = useState(theaterDraft?.theaterName ?? '');
+  const [city, setCity] = useState(theaterDraft?.city ?? '');
+  const [address, setAddress] = useState(theaterDraft?.address ?? '');
+  const [screenNumber, setScreenNumber] = useState(theaterDraft?.screenNumber ?? 1);
+  const [screenType, setScreenType] = useState(theaterDraft?.screenType ?? 'Standard');
   const [screenTypesList, setScreenTypesList] = useState([]);
-
-  const [rows, setRows] = useState(DEFAULT_SIZE);
-  const [cols, setCols] = useState(DEFAULT_SIZE);
-
-  // --- LOGIC ---
-  // 0: Aisle, 1: Platinum, 2: Gold, 3: Diamond
+  const [rows, setRows] = useState(theaterDraft?.rows ?? DEFAULT_SIZE);
+  const [cols, setCols] = useState(theaterDraft?.cols ?? DEFAULT_SIZE);
   const [seatLayout, setSeatLayout] = useState(
-    Array.from({ length: DEFAULT_SIZE }, () => Array(DEFAULT_SIZE).fill(1))
+    theaterDraft?.seatLayout ?? Array.from({ length: DEFAULT_SIZE }, () => Array(DEFAULT_SIZE).fill(1))
   );
 
-  // Drag-to-Paint Logic
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [currentBrush, setCurrentBrush] = useState(1);
 
-  // Stop drawing if the mouse is released anywhere on the screen
+  // Auto-save to localStorage
+  useEffect(() => {
+    const draft = { theaterName, city, address, screenNumber, screenType, rows, cols, seatLayout };
+    localStorage.setItem('admin_theater_draft', JSON.stringify(draft));
+  }, [theaterName, city, address, screenNumber, screenType, rows, cols, seatLayout]);
+
   useEffect(() => {
     const handleGlobalMouseUp = () => setIsMouseDown(false);
     window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -106,26 +170,36 @@ const AdminDashboard = () => {
   const applyBrush = (rIdx, cIdx) => {
     setSeatLayout((prev) => {
       const newLayout = [...prev];
-      newLayout[rIdx] = [...newLayout[rIdx]]; // Deep copy row
+      newLayout[rIdx] = [...newLayout[rIdx]];
       newLayout[rIdx][cIdx] = currentBrush;
       return newLayout;
     });
   };
 
-  const handleCreateTheater = async (e) => {
+  const confirmCreateTheater = (e) => {
     e.preventDefault();
+    setModalConfig({
+      isOpen: true,
+      title: 'Save Theater Details',
+      message: 'Are you sure you want to save this theater and screen layout? Please ensure your seat mapping and aisles are correct.',
+      confirmText: 'Save Theater',
+      confirmColor: 'bg-blue-600 hover:bg-green-700',
+      onConfirm: () => {
+        closeModal();
+        executeCreateTheater();
+      }
+    });
+  };
 
+  const executeCreateTheater = async () => {
     const flatLayout = seatLayout.flat();
     const totalSeats = flatLayout.filter(seat => seat > 0).length;
     const totalAisles = flatLayout.filter(seat => seat === 0).length;
 
-    // VALIDATION 1: Cannot be all zeros
     if (totalSeats === 0) {
       toast.error('Cannot create a screen with zero seats!');
       return;
     }
-
-    // VALIDATION 2: Must have adequate walking space (User Request)
     if (totalAisles < rows - 1) {
       toast.error(`Fire Safety Warning: Please leave at least ${rows - 1} empty spaces to create aisles.`);
       return;
@@ -134,13 +208,7 @@ const AdminDashboard = () => {
     const payload = {
       name: theaterName,
       location: { city, address },
-      screens: [
-        {
-          screenNumber,
-          screenType,
-          seatLayout: seatLayout
-        }
-      ]
+      screens: [{ screenNumber, screenType, seatLayout }]
     };
 
     const toastId = toast.loading('Saving theater...');
@@ -148,49 +216,73 @@ const AdminDashboard = () => {
       await api.post('/theaters', payload);
       toast.update(toastId, { render: 'Theater created successfully!', type: 'success', isLoading: false, autoClose: 3000 });
 
-      // Reset form
-      setTheaterName('');
-      setCity('');
-      setAddress('');
-      setScreenNumber(1);
-      setScreenType('Standard');
-      handleGridResize(DEFAULT_SIZE, DEFAULT_SIZE);
+      // Reset form and clear draft
+      executeDiscardTheater(false);
     } catch (error) {
       const msg = error.response?.data?.message || 'Failed to create theater';
-      toast.update(toastId, {
-        render: msg,
-        type: 'error',
-        isLoading: false,
-        autoClose: 5000
-      });
+      toast.update(toastId, { render: msg, type: 'error', isLoading: false, autoClose: 5000 });
     }
   };
 
-  // Helper for rendering seat colors
+  const confirmDiscardTheater = () => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Discard Layout?',
+      message: 'Are you sure you want to discard this theater layout? All unsaved seating data will be permanently lost.',
+      confirmText: 'Discard Changes',
+      confirmColor: 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => {
+        closeModal();
+        executeDiscardTheater(true);
+      }
+    });
+  };
+
+  const executeDiscardTheater = (showToast = true) => {
+    setTheaterName('');
+    setCity('');
+    setAddress('');
+    setScreenNumber(1);
+    setScreenType(screenTypesList[0] || 'Standard');
+    handleGridResize(DEFAULT_SIZE, DEFAULT_SIZE);
+    localStorage.removeItem('admin_theater_draft');
+    if (showToast) toast.info('Theater draft discarded.');
+  };
+
   const getSeatColor = (val) => {
     switch (val) {
-      case 0: return 'bg-transparent border border-gray-300'; // Aisle
-      case 1: return 'bg-blue-500 hover:bg-blue-400 border-blue-600'; // Platinum
-      case 2: return 'bg-yellow-400 hover:bg-yellow-300 border-yellow-500'; // Gold
-      case 3: return 'bg-purple-500 hover:bg-purple-400 border-purple-600'; // Diamond
+      case 0: return 'bg-transparent border border-gray-300';
+      case 1: return 'bg-blue-500 hover:bg-blue-400 border-blue-600';
+      case 2: return 'bg-yellow-400 hover:bg-yellow-300 border-yellow-500';
+      case 3: return 'bg-purple-500 hover:bg-purple-400 border-purple-600';
       default: return 'bg-gray-200';
     }
   };
 
-
   // ==========================================
   // 3. SHOW SCHEDULER STATE & LOGIC
   // ==========================================
+  const getShowDraft = () => {
+    const saved = localStorage.getItem('admin_show_draft');
+    return saved ? JSON.parse(saved) : null;
+  };
+  const showDraft = getShowDraft();
+
   const [moviesList, setMoviesList] = useState([]);
   const [theatersList, setTheatersList] = useState([]);
 
-  const [selectedMovie, setSelectedMovie] = useState('');
-  const [selectedTheater, setSelectedTheater] = useState('');
-  const [selectedScreen, setSelectedScreen] = useState('');
-  const [showStartTime, setShowStartTime] = useState('');
-  const [prices, setPrices] = useState({ Platinum: 250, Gold: 350, Diamond: 500 });
+  const [selectedMovie, setSelectedMovie] = useState(showDraft?.selectedMovie ?? '');
+  const [selectedTheater, setSelectedTheater] = useState(showDraft?.selectedTheater ?? '');
+  const [selectedScreen, setSelectedScreen] = useState(showDraft?.selectedScreen ?? '');
+  const [showStartTime, setShowStartTime] = useState(showDraft?.showStartTime ?? '');
+  const [prices, setPrices] = useState(showDraft?.prices ?? { Platinum: 250, Gold: 350, Diamond: 500 });
 
-  // Fetch Movies, Theaters and ScreenTypes available when the component mounts
+  // Auto-save to localStorage
+  useEffect(() => {
+    const draft = { selectedMovie, selectedTheater, selectedScreen, showStartTime, prices };
+    localStorage.setItem('admin_show_draft', JSON.stringify(draft));
+  }, [selectedMovie, selectedTheater, selectedScreen, showStartTime, prices]);
+
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
@@ -202,27 +294,23 @@ const AdminDashboard = () => {
         setMoviesList(moviesRes.data);
         setTheatersList(theatersRes.data);
 
-        // Set the dynamic list and default the selection to the first item
         if (screenTypesRes.data && screenTypesRes.data.length > 0) {
           setScreenTypesList(screenTypesRes.data);
-          setScreenType(screenTypesRes.data[0]);
+          if (!theaterDraft?.screenType) setScreenType(screenTypesRes.data[0]);
         }
       } catch (error) {
         toast.error('Failed to load initial data');
       }
     };
     fetchDropdownData();
-  }, []);
+  }, [theaterDraft]);
 
-  // Derived state: Get the screens for the currently selected theater
   const availableScreens = selectedTheater
     ? theatersList.find(t => t._id === selectedTheater)?.screens || []
     : [];
 
-  // Find the full object of the currently selected screen
   const activeScreenObj = availableScreens.find(s => s.screenNumber === Number(selectedScreen));
 
-  // Scan its layout to see which seat tiers actually exist
   const existingTiers = new Set();
   if (activeScreenObj?.seatLayout) {
     activeScreenObj.seatLayout.flat().forEach(val => {
@@ -232,26 +320,36 @@ const AdminDashboard = () => {
     });
   }
 
-  // Handle individual price changes
   const handlePriceChange = (tier, value) => {
     setPrices(prev => ({ ...prev, [tier]: Number(value) }));
   };
 
-
-  // Helper to prevent selecting past dates (adjusts for local timezone)
   const getMinDatetime = () => {
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     return now.toISOString().slice(0, 16);
   };
 
-  const handleCreateShow = async (e) => {
+  const confirmCreateShow = (e) => {
     e.preventDefault();
     if (!selectedMovie || !selectedTheater || !selectedScreen || !showStartTime) {
       toast.error('Please fill all required fields');
       return;
     }
+    setModalConfig({
+      isOpen: true,
+      title: 'Publish Show',
+      message: 'Are you sure you want to publish this show schedule?',
+      confirmText: 'Publish Show',
+      confirmColor: 'bg-blue-600 hover:bg-blue-700',
+      onConfirm: () => {
+        closeModal();
+        executeCreateShow();
+      }
+    });
+  };
 
+  const executeCreateShow = async () => {
     const toastId = toast.loading('Scheduling show...');
     try {
       await api.post('/shows', {
@@ -263,18 +361,10 @@ const AdminDashboard = () => {
       });
 
       toast.update(toastId, { render: 'Show scheduled successfully!', type: 'success', isLoading: false, autoClose: 3000 });
-
-      // Reset form
-      setSelectedMovie('');
-      setSelectedTheater('');
-      setSelectedScreen('');
-      setShowStartTime('');
-      setPrices({ Platinum: 250, Gold: 350, Diamond: 500 });
+      executeDiscardShow(false);
     } catch (error) {
       const errorMsg = error.response?.data?.message || 'Failed to schedule show';
-
       if (error.response?.status === 400 && error.response?.data?.conflictDetails) {
-        // Update the loading toast into a conflict error
         toast.update(toastId, {
           render: `Conflict! Another show runs from ${new Date(error.response.data.conflictDetails.existingStart).toLocaleTimeString()} to ${new Date(error.response.data.conflictDetails.existingEnd).toLocaleTimeString()}`,
           type: 'error',
@@ -282,19 +372,39 @@ const AdminDashboard = () => {
           autoClose: 5000
         });
       } else {
-        // Update the loading toast into a standard error
-        toast.update(toastId, {
-          render: errorMsg,
-          type: 'error',
-          isLoading: false,
-          autoClose: 3000
-        });
+        toast.update(toastId, { render: errorMsg, type: 'error', isLoading: false, autoClose: 3000 });
       }
     }
   };
 
+  const confirmDiscardShow = () => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Discard Show Details?',
+      message: 'Are you sure you want to discard this show schedule? Unsaved details will be lost.',
+      confirmText: 'Discard Changes',
+      confirmColor: 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => {
+        closeModal();
+        executeDiscardShow(true);
+      }
+    });
+  };
+
+  const executeDiscardShow = (showToast = true) => {
+    setSelectedMovie('');
+    setSelectedTheater('');
+    setSelectedScreen('');
+    setShowStartTime('');
+    setPrices({ Platinum: 250, Gold: 350, Diamond: 500 });
+    localStorage.removeItem('admin_show_draft');
+    if (showToast) toast.info('Show schedule draft discarded.');
+  };
+
   return (
-    <div className="max-w-6xl mx-auto py-8">
+    <div className="max-w-6xl mx-auto py-8 relative">
+      <ConfirmationModal {...modalConfig} onCancel={closeModal} />
+
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Admin Dashboard</h1>
 
       {/* TABS */}
@@ -311,7 +421,6 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* The Content Areas */}
       <div className="bg-white p-6 rounded-lg shadow-md min-h-[400px]">
 
         {/* ======================= MOVIE TAB ======================= */}
@@ -358,7 +467,7 @@ const AdminDashboard = () => {
                       <p className="text-xs text-gray-500">{movie.release_date?.substring(0, 4)}</p>
                     </div>
                     <button
-                      onClick={() => handleImport(movie.id, movie.title)}
+                      onClick={() => confirmImport(movie.id, movie.title)}
                       disabled={isLockedOut}
                       className="mt-2 text-xs py-1.5 px-3 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50"
                     >
@@ -371,13 +480,20 @@ const AdminDashboard = () => {
           </div>
         )}
 
-
         {/* ======================= THEATER TAB ======================= */}
         {activeTab === 'theaters' && (
           <div>
-            <h2 className="text-xl font-bold mb-6">Create Theater & Screen Layout</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">Create Theater & Screen Layout</h2>
+              <button
+                onClick={confirmDiscardTheater}
+                className="px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition text-sm font-semibold"
+              >
+                Discard Draft
+              </button>
+            </div>
 
-            <form onSubmit={handleCreateTheater} className="space-y-6">
+            <form onSubmit={confirmCreateTheater} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <input type="text" placeholder="Theater Name (e.g., PVR)" required value={theaterName} onChange={(e) => setTheaterName(e.target.value)} className="px-4 py-2 border rounded-md" />
                 <input type="number" placeholder="Screen Number" required min="1" max={MAX_SCREENS} value={screenNumber} onChange={(e) => setScreenNumber(Number(e.target.value))} className="px-4 py-2 border rounded-md" />
@@ -416,44 +532,63 @@ const AdminDashboard = () => {
               </div>
 
               {/* Interactive Grid */}
-              <div className="border-2 border-dashed border-gray-300 p-6 rounded-lg overflow-x-auto text-center bg-gray-50 touch-none">
-                <div className="inline-block w-4/5 h-8 bg-gray-300 mb-8 rounded-b-3xl mx-auto flex items-center justify-center text-sm font-bold text-gray-500 tracking-widest shadow-inner">SCREEN THIS WAY</div>
+              <div className="border-2 border-dashed border-gray-300 p-4 sm:p-6 rounded-lg overflow-x-auto text-center bg-gray-50 touch-none">
 
-                <div
-                  className="inline-grid gap-1.5 p-2 bg-white rounded border shadow-sm"
-                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-                  onMouseLeave={() => setIsMouseDown(false)} // Safety stop if mouse leaves grid
-                >
-                  {seatLayout.map((row, rIdx) => (
-                    row.map((seat, cIdx) => (
-                      <div
-                        key={`${rIdx}-${cIdx}`}
-                        onMouseDown={() => { setIsMouseDown(true); applyBrush(rIdx, cIdx); }}
-                        onMouseEnter={() => { if (isMouseDown) applyBrush(rIdx, cIdx); }}
-                        className={`w-6 h-6 sm:w-8 sm:h-8 rounded-t-lg cursor-pointer border ${getSeatColor(seat)}`}
-                        title={`Row ${rIdx + 1}, Col ${cIdx + 1}`}
-                      />
-                    ))
-                  ))}
+                {/* 1. SCROLL WRAPPER: Forces the grid to overflow cleanly instead of squishing */}
+                <div className="min-w-[600px] sm:min-w-0 inline-block w-max min-w-full">
+
+                  <div className="inline-block w-4/5 max-w-2xl h-8 bg-gray-300 mb-8 rounded-b-3xl mx-auto flex items-center justify-center text-sm font-bold text-gray-500 tracking-widest shadow-inner">
+                    SCREEN THIS WAY
+                  </div>
+
+                  <div
+                    // 2. W-MAX: Allows container to grow infinitely wide
+                    className="inline-grid gap-1.5 p-4 sm:p-6 bg-white rounded border shadow-sm mx-auto w-max"
+                    // 3. MAX-CONTENT: Forces columns to strictly respect the seat width
+                    style={{ gridTemplateColumns: `repeat(${cols}, max-content)` }}
+                    onMouseLeave={() => setIsMouseDown(false)}
+                  >
+                    {seatLayout.map((row, rIdx) => (
+                      row.map((seat, cIdx) => (
+                        <div
+                          key={`${rIdx}-${cIdx}`}
+                          onMouseDown={() => { setIsMouseDown(true); applyBrush(rIdx, cIdx); }}
+                          onMouseEnter={() => { if (isMouseDown) applyBrush(rIdx, cIdx); }}
+                          // 4. FLEX-SHRINK-0: Guarantees the seats themselves never compress
+                          className={`w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0 rounded-t-lg cursor-pointer border ${getSeatColor(seat)}`}
+                          title={`Row ${rIdx + 1}, Col ${cIdx + 1}`}
+                        />
+                      ))
+                    ))}
+                  </div>
                 </div>
-                <p className="mt-4 text-xs text-gray-500 font-semibold">Select a brush and Drag to paint seats. Leave blank spaces for aisles.</p>
+
+                <p className="mt-4 text-xs text-gray-500 font-semibold">
+                  Select a brush and drag to paint seats. Leave blank spaces for aisles. <span className="md:hidden">Swipe to see more.</span>
+                </p>
               </div>
 
-              <button type="submit" className="w-full bg-green-600 text-white font-bold py-3 rounded-md hover:bg-green-700 transition">
+              <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition">
                 Save Theater & Screen
               </button>
             </form>
           </div>
         )}
 
-
         {/* ======================= SHOWS TAB ======================= */}
         {activeTab === 'shows' && (
           <div>
-            <h2 className="text-xl font-bold mb-6">Schedule a Show</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">Schedule a Show</h2>
+              <button
+                onClick={confirmDiscardShow}
+                className="px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition text-sm font-semibold"
+              >
+                Discard Draft
+              </button>
+            </div>
 
-            <form onSubmit={handleCreateShow} className="space-y-6 max-w-2xl bg-gray-50 p-6 rounded-lg border border-gray-200">
-
+            <form onSubmit={confirmCreateShow} className="space-y-6 max-w-2xl bg-gray-50 p-6 rounded-lg border border-gray-200">
               {/* Select Movie */}
               <div className="flex flex-col">
                 <label className="font-semibold text-gray-700 mb-2">Select Movie</label>
@@ -477,7 +612,7 @@ const AdminDashboard = () => {
                   value={selectedTheater}
                   onChange={(e) => {
                     setSelectedTheater(e.target.value);
-                    setSelectedScreen(''); // Reset screen when theater changes
+                    setSelectedScreen('');
                   }}
                   required
                   className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
@@ -489,7 +624,7 @@ const AdminDashboard = () => {
                 </select>
               </div>
 
-              {/* Select Screen (Dynamically populates based on Theater) */}
+              {/* Select Screen */}
               <div className="flex flex-col">
                 <label className="font-semibold text-gray-700 mb-2">Select Screen</label>
                 <select
@@ -521,12 +656,11 @@ const AdminDashboard = () => {
                     className="px-4 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                {/* Dynamic Tier Pricing */}
+
                 {selectedScreen && existingTiers.size > 0 && (
                   <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm mt-4 col-span-1 md:col-span-2">
                     <h3 className="font-semibold text-gray-700 mb-3 border-b pb-2">Set Ticket Prices (₹)</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
                       {existingTiers.has('Platinum') && (
                         <div className="flex flex-col">
                           <label className="text-sm font-bold text-blue-600 mb-1">Platinum Seats</label>
@@ -562,7 +696,6 @@ const AdminDashboard = () => {
                           />
                         </div>
                       )}
-
                     </div>
                   </div>
                 )}
