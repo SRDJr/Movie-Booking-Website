@@ -532,29 +532,46 @@ const AdminDashboard = () => {
               </div>
 
               {/* Interactive Grid */}
-              <div className="border-2 border-dashed border-gray-300 p-4 sm:p-6 rounded-lg overflow-x-auto text-center bg-gray-50 touch-none">
+              <div className="border border-gray-200 shadow-sm py-4 sm:p-10 rounded-2xl overflow-x-auto text-center bg-gray-50">
 
-                {/* 1. SCROLL WRAPPER: Forces the grid to overflow cleanly instead of squishing */}
-                <div className="min-w-[600px] sm:min-w-0 inline-block w-max min-w-full">
+                {/* FIX 1: Added px-4 sm:px-0 to ensure the white box doesn't touch the edge of the mobile screen */}
+                <div className="min-w-[600px] sm:min-w-0 inline-block w-max min-w-full px-4 sm:px-0">
 
-                  <div className="inline-block w-4/5 max-w-2xl h-8 bg-gray-300 mb-8 rounded-b-3xl mx-auto flex items-center justify-center text-sm font-bold text-gray-500 tracking-widest shadow-inner">
+                  <div className="inline-block w-4/5 max-w-2xl h-8 sm:h-10 bg-gradient-to-b from-gray-300 to-gray-200 mb-10 sm:mb-16 rounded-b-[40px] mx-auto flex items-center justify-center text-[10px] sm:text-sm font-bold text-gray-500 tracking-[0.2em] sm:tracking-[0.3em] shadow-inner border border-gray-300">
                     SCREEN THIS WAY
                   </div>
 
                   <div
-                    // 2. W-MAX: Allows container to grow infinitely wide
-                    className="inline-grid gap-1.5 p-4 sm:p-6 bg-white rounded border shadow-sm mx-auto w-max"
-                    // 3. MAX-CONTENT: Forces columns to strictly respect the seat width
+                    className="inline-grid gap-y-2 gap-x-2 sm:gap-3 p-4 sm:p-6 bg-white rounded-xl border shadow-sm mx-auto w-max"
                     style={{ gridTemplateColumns: `repeat(${cols}, max-content)` }}
                     onMouseLeave={() => setIsMouseDown(false)}
+                    // --- FIX 2: NEW MOBILE TOUCH EVENTS (Swipe to Paint) ---
+                    onTouchStart={() => setIsMouseDown(true)}
+                    onTouchEnd={() => setIsMouseDown(false)}
+                    onTouchMove={(e) => {
+                      if (!isMouseDown) return;
+                      e.preventDefault(); // Prevents screen from scrolling while painting
+
+                      const touch = e.touches[0];
+                      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+                      if (target && target.dataset.row !== undefined) {
+                        const r = parseInt(target.dataset.row);
+                        const c = parseInt(target.dataset.col);
+                        applyBrush(r, c);
+                      }
+                    }}
                   >
                     {seatLayout.map((row, rIdx) => (
                       row.map((seat, cIdx) => (
                         <div
                           key={`${rIdx}-${cIdx}`}
+                          // --- DATA ATTRIBUTES FOR MOBILE TRACKING ---
+                          data-row={rIdx}
+                          data-col={cIdx}
+                          // -------------------------------------------
                           onMouseDown={() => { setIsMouseDown(true); applyBrush(rIdx, cIdx); }}
                           onMouseEnter={() => { if (isMouseDown) applyBrush(rIdx, cIdx); }}
-                          // 4. FLEX-SHRINK-0: Guarantees the seats themselves never compress
                           className={`w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0 rounded-t-lg cursor-pointer border ${getSeatColor(seat)}`}
                           title={`Row ${rIdx + 1}, Col ${cIdx + 1}`}
                         />
@@ -564,7 +581,7 @@ const AdminDashboard = () => {
                 </div>
 
                 <p className="mt-4 text-xs text-gray-500 font-semibold">
-                  Select a brush and drag to paint seats. Leave blank spaces for aisles. <span className="md:hidden">Swipe to see more.</span>
+                  Select a brush and drag to paint seats. <span className="md:hidden text-blue-600">Swipe on the gray area to scroll sideways.</span>
                 </p>
               </div>
 
