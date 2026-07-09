@@ -207,7 +207,7 @@ const SeatSelection = () => {
                                     <div
                                         key={`${rIdx}-${cIdx}`}
                                         onClick={() => seat && handleSeatClick(seat)}
-                                        // Removed the shrinking! Seats will always be 10x10 with consistent spacing
+                                        
                                         className={`w-7 h-7 sm:w-10 sm:h-10 rounded-t flex-shrink-0 border ${getSeatStyling(seat)} flex items-center justify-center`}
                                         title={seat ? `Row ${getRowLabel(rIdx)}, Col ${cIdx + 1} - ₹${seat.price}` : 'Aisle'}
                                     >
