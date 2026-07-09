@@ -521,13 +521,15 @@ const AdminDashboard = () => {
                   <input type="number" min="3" max={MAX_COLS} value={cols} onChange={(e) => handleGridResize(rows, Number(e.target.value))} className="w-16 px-2 py-1 border rounded" title="Columns" />
                 </div>
 
-                {/* Brush Toolbar */}
-                <div className="flex gap-2 items-center">
-                  <span className="text-sm font-semibold text-gray-600 mr-2">Paint Brush:</span>
-                  <button type="button" onClick={() => setCurrentBrush(1)} className={`px-3 py-1 rounded border text-sm font-semibold ${currentBrush === 1 ? 'bg-blue-100 border-blue-600 text-blue-800' : 'bg-white'}`}>Platinum</button>
-                  <button type="button" onClick={() => setCurrentBrush(2)} className={`px-3 py-1 rounded border text-sm font-semibold ${currentBrush === 2 ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-white'}`}>Gold</button>
-                  <button type="button" onClick={() => setCurrentBrush(3)} className={`px-3 py-1 rounded border text-sm font-semibold ${currentBrush === 3 ? 'bg-purple-100 border-purple-600 text-purple-800' : 'bg-white'}`}>Diamond</button>
-                  <button type="button" onClick={() => setCurrentBrush(0)} className={`px-3 py-1 rounded border text-sm font-semibold ${currentBrush === 0 ? 'bg-gray-200 border-gray-600 text-gray-800' : 'bg-white'}`}>Eraser (Aisle)</button>
+                {/* FIX: Added flex-wrap and responsive text alignment so buttons stack neatly on mobile */}
+                <div className="flex flex-wrap gap-2 items-center justify-center w-full md:w-auto">
+                  <span className="text-sm font-semibold text-gray-600 w-full sm:w-auto text-center sm:text-left sm:mr-2 mb-1 sm:mb-0">
+                    Paint Brush:
+                  </span>
+                  <button type="button" onClick={() => setCurrentBrush(1)} className={`px-3 py-1 rounded border text-sm font-semibold flex-shrink-0 ${currentBrush === 1 ? 'bg-blue-100 border-blue-600 text-blue-800' : 'bg-white'}`}>Platinum</button>
+                  <button type="button" onClick={() => setCurrentBrush(2)} className={`px-3 py-1 rounded border text-sm font-semibold flex-shrink-0 ${currentBrush === 2 ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-white'}`}>Gold</button>
+                  <button type="button" onClick={() => setCurrentBrush(3)} className={`px-3 py-1 rounded border text-sm font-semibold flex-shrink-0 ${currentBrush === 3 ? 'bg-purple-100 border-purple-600 text-purple-800' : 'bg-white'}`}>Diamond</button>
+                  <button type="button" onClick={() => setCurrentBrush(0)} className={`px-3 py-1 rounded border text-sm font-semibold flex-shrink-0 ${currentBrush === 0 ? 'bg-gray-200 border-gray-600 text-gray-800' : 'bg-white'}`}>Eraser (Aisle)</button>
                 </div>
               </div>
 
