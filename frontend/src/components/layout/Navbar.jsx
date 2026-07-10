@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import Logo from '../Logo';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -57,7 +58,9 @@ const Navbar = () => {
         <div className="container mx-auto flex justify-between items-center">
 
           <Link to="/" onClick={closeMobileMenu} className="text-2xl font-bold flex items-center gap-2">
-            🎟️ CineFlix
+            <Link to="/" className="flex items-center hover:opacity-90 transition-opacity">
+              <Logo className="h-10" />
+            </Link>
           </Link>
 
           {/* DESKTOP VIEW - 100% Untouched */}
